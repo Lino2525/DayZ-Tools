@@ -60,22 +60,31 @@
         <summary><span class="group-title">Grundkarte</span></summary>
         <label class="row"><input type="checkbox" id="opt-names" checked><span class="sym legend-name" aria-hidden="true">Aa</span><span class="row-label">Ortsnamen</span></label>
         <label class="row"><input type="checkbox" id="opt-roads" checked><span class="legend-road" aria-hidden="true"></span><span class="row-label">Wege und Pisten</span></label>
-        <label class="row"><input type="checkbox" id="opt-buildings" checked><span class="legend-building" aria-hidden="true"></span><span class="row-label">Gebäude (ab Nahansicht)</span></label>
+        <label class="row"><input type="checkbox" id="opt-buildings" checked><span class="legend-building" aria-hidden="true"></span><span class="row-label">Gebäude und Bäume</span></label>
+        <label class="row"><input type="checkbox" id="opt-tiers"><span class="legend-tiers" aria-hidden="true"></span><span class="row-label">Tier-Zonen einfärben</span></label>
         <label class="row"><input type="checkbox" id="opt-grid" checked><span class="swatch grid-swatch"></span><span class="row-label">Raster (1 km)</span></label>
         <label class="row" id="overlay-row" hidden><input type="checkbox" id="opt-overlay"><span class="swatch"></span><span class="row-label">Eigenes Kartenbild</span></label>
         <ul class="legend" data-for="paper">
-          <li><span class="legend-road wide"></span>Fahrweg</li>
-          <li><span class="legend-road"></span>Piste</li>
+          <li><span class="legend-road main"></span>Hauptweg</li>
+          <li><span class="legend-road minor"></span>Nebenweg</li>
           <li><span class="legend-road path"></span>Pfad</li>
           <li><span class="legend-contour"></span>Höhenlinie alle 20 m, kräftig alle 100 m</li>
         </ul>
-        <ul class="legend" data-for="loot">
-          <li><span class="swatch" style="--c:#E7DBC1"></span>Tier 1, Randgebiete mit einfachem Loot</li>
-          <li><span class="swatch" style="--c:#DDC9A0"></span>Tier 2</li>
-          <li><span class="swatch" style="--c:#CCAC78"></span>Tier 3, bessere Ausrüstung</li>
-          <li><span class="swatch" style="--c:#B7A571"></span>Grünlicher Ton: Militärgebiet</li>
+        <ul class="legend" data-for="real">
+          <li><span class="swatch sq" style="--c:#DCC79C"></span>Sand und Dünen</li>
+          <li><span class="swatch sq" style="--c:#A9A08C"></span>Schotter und Fels</li>
+          <li><span class="swatch" style="--c:#62722F"></span>Bäume, meist Feigen</li>
+          <li><span class="swatch sq" style="--c:#C9B28A"></span>Lehmhaus, Flachdach</li>
+          <li><span class="swatch sq" style="--c:#929084"></span>Wellblech und Container</li>
         </ul>
-        <p class="help">Die Papierkarte ist aus den offenen Spieldaten berechnet: Gelände aus rund 200.000 Objekthöhen, Wege aus den Wegstücken. Asphaltstraßen und manche Ortsnamen fehlen noch. Namen mit ≈ sind ungefähr platziert.</p>
+        <ul class="legend tier-legend">
+          <li><span class="swatch sq" style="--c:#2EA043"></span>Tier 1, einfacher Loot</li>
+          <li><span class="swatch sq" style="--c:#E8C42E"></span>Tier 2</li>
+          <li><span class="swatch sq" style="--c:#EC7C22"></span>Tier 3</li>
+          <li><span class="swatch sq" style="--c:#D02A2A"></span>Tier 4, bester Loot</li>
+          <li><span class="swatch sq hatch"></span>Schraffiert: Militärgebiet</li>
+        </ul>
+        <p class="help">Beide Kartenarten sind aus den offenen Spieldaten selbst gezeichnet: Gelände aus rund 200.000 Objekthöhen, Wege aus den Wegstücken, jeder Baum und jedes Haus an seiner echten Position. Hausgrößen sind geschätzt, Asphaltstraßen und manche Ortsnamen fehlen. Namen mit ≈ sind ungefähr platziert.</p>
       </details>
 
       <footer class="credits">
@@ -93,18 +102,26 @@
         <span class="readout-k" id="rh-k">Höhe</span><span id="rh">–</span>
       </button>
 
-      <div class="styleswitch" role="radiogroup" aria-label="Kartenart">
-        <button type="button" role="radio" data-style="paper" class="style-btn">
-          <span class="style-thumb thumb-paper" aria-hidden="true"></span><span>Papierkarte</span>
-        </button>
-        <button type="button" role="radio" data-style="loot" class="style-btn">
-          <span class="style-thumb thumb-loot" aria-hidden="true"></span><span>Loot-Zonen</span>
+      <div class="styleswitch">
+        <div class="style-group" role="radiogroup" aria-label="Kartenart">
+          <button type="button" role="radio" data-style="paper" class="style-btn">
+            <span class="style-thumb thumb-paper" aria-hidden="true"></span><span>Papierkarte</span>
+          </button>
+          <button type="button" role="radio" data-style="real" class="style-btn">
+            <span class="style-thumb thumb-real" aria-hidden="true"></span><span>Gelände</span>
+          </button>
+        </div>
+        <button type="button" class="style-btn tier-btn" id="tier-toggle" aria-pressed="false">
+          <span class="style-thumb thumb-tiers" aria-hidden="true"></span><span>Tier-Zonen</span>
         </button>
       </div>
 
       <div class="tools" role="toolbar" aria-label="Werkzeuge">
         <button class="tool panel-open" id="panel-open" type="button" aria-label="Ebenen öffnen">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3l7 4-7 4-7-4zM3 11l7 4 7-4"/></svg><span>Ebenen</span>
+        </button>
+        <button class="tool" id="tool-3d" type="button" title="Ausschnitt um die Kartenmitte in 3D ansehen">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2l7 4v8l-7 4-7-4V6zM3 6l7 4 7-4M10 10v8"/></svg><span>3D</span>
         </button>
         <button class="tool" id="tool-measure" type="button" aria-pressed="false">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15L15 3l2 2L5 17zM7 11l1.5 1.5M9.5 8.5L11 10M12 6l1.5 1.5"/></svg><span>Messen</span>

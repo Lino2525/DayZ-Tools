@@ -10,7 +10,9 @@ Eine Karte für **DayZ Badlands (Nasdara)** mit Filter-Legende, gebaut direkt au
 - **Gefahren**: Gaszonen, Wolfs- und Bärenreviere, Ölgruben
 - **Orte**: Tankstellen, Bunker, Funkbunker (Morsecode), Spieler-Spawnbereiche
 - **Tier-Filter**: zeigt nur Punkte in Zonen ab Tier 2 oder 3
-- **Zwei Kartenarten** zum Umschalten (unten links): **Papierkarte** mit Gelände, Höhenlinien, Wegen, Gebäuden und Ortsnamen, oder **Loot-Zonen** mit Tier-Zonen und Militärgebieten. Beide mit 1-km-Raster
+- **Zwei Kartenarten** zum Umschalten (unten links): **Papierkarte** mit Höhenlinien, farbigen Wegen nach Klasse (Hauptweg, Nebenweg, Pfad) und Ortsnamen, oder **Gelände**, eine realistische Ansicht mit Sand, Dünen, Fels, Gärten, jedem einzelnen Baum und jedem Haus samt Schatten
+- **Tier-Zonen** als zuschaltbare, halbtransparente Ebene von grün (Tier 1) bis rot (Tier 4), Militärgebiete schraffiert
+- **3D-Ansicht**: ein 4 × 4 km großer Ausschnitt um die Kartenmitte mit Gelände, Bäumen und Gebäuden, frei dreh- und zoombar, Überhöhung einstellbar
 - **Höhe** unter dem Mauszeiger
 - **Koordinaten** unter dem Mauszeiger, kopieren per Klick oder Strg+C, Sprung zu einer GPS-Koordinate
 - **Messen**: Entfernung und Kompassrichtung zwischen zwei Punkten
@@ -22,7 +24,9 @@ Das eigentliche Terrain von Nasdara (Höhenmodell, Straßennetz, Ortsnamen) ist 
 
 - **Gelände:** rund 200.000 Objekte mit Höhenangabe (Bäume, Wegstücke, Gebäude) werden zu einem Höhenraster interpoliert. Wo viele Objekte stehen, ist das Gelände genau, in leeren Wüstenflächen nur grob. Höhenlinien werden nur dort gezeichnet, wo die Daten dicht genug sind.
 - **Wege:** rund 38.000 Wegstücke (Fahrwege, Pisten, Pfade) mit Position, Richtung und Länge, zu Linien verbunden. **Asphaltstraßen sind in diesen Daten nicht enthalten** und fehlen deshalb.
-- **Gebäude:** Position und Ausrichtung aller Loot-Gebäude, als einheitliche Quadrate.
+- **Gebäude:** Position und Ausrichtung aller Loot-Gebäude. Die Grundfläche ist aus der Lage der Loot-Punkte im Gebäude geschätzt, das Material (Lehm, Stein, Wellblech, Holz) aus dem Gebäudenamen.
+- **Bäume:** rund 156.000 Bäume, Stümpfe und Stämme mit Art und Position.
+- **Texturen:** Sand, Dünenrippel, Schotter, Fels, Gartenerde, Baumkronen und Dächer sind komplett selbst berechnet und gezeichnet. Es werden keine Texturen oder Bilder aus dem Spiel oder von anderen Kartenseiten verwendet.
 - **Ortsnamen:** stehen in `data/places.json`. Bisher sind nur Namen drin, die offen in Bohemias Daten vorkommen (Konvoi-Gruppen, Musikzonen). Namen mit ≈ sind ungefähr platziert.
 
 ### Ortsnamen ergänzen oder korrigieren
@@ -52,9 +56,10 @@ git clone --depth 1 https://github.com/BohemiaInteractive/DayZ-Central-Economy.g
 pip install numpy pillow scipy scikit-image
 python scripts/build_map_data.py DayZ-Central-Economy/dayzOffline.nasdara --commit "$(git -C DayZ-Central-Economy rev-parse --short HEAD)"
 python scripts/build_paper_map.py DayZ-Central-Economy/dayzOffline.nasdara
+python scripts/build_realistic.py DayZ-Central-Economy/dayzOffline.nasdara
 ```
 
-Das erste Skript schreibt `data/nasdara.json` und `data/nasdara-base.png`, das zweite die Papierkarte (`data/paper/`, `data/paper.json`, `data/height64.png`). `data/places.json` wird nicht überschrieben. Die Ebenen, Farben und Bezeichnungen stehen in `js/config.js`.
+Das erste Skript schreibt `data/nasdara.json` und `data/nasdara-base.png`, das zweite die Papierkarte (`data/paper/`, `data/paper.json`, `data/height64.png`, `data/tiers.png`), das dritte die Geländeansicht und die 3D-Daten (`data/real/`, `data/objects.json`, `data/height16.png`, dauert etwa zwei Minuten). `data/places.json` wird nicht überschrieben. Die Ebenen, Farben und Bezeichnungen stehen in `js/config.js`.
 
 ## Aufbau
 
@@ -63,14 +68,20 @@ index.html               Seite
 css/style.css            Gestaltung
 js/config.js             Ebenen, Farben, Marker-Arten
 js/app.js                Kartenlogik
+js/view3d.js             3D-Ansicht (wird erst beim Öffnen geladen)
 data/nasdara.json        Punkte und Zonen (erzeugt)
 data/nasdara-base.png    Loot-Zonen-Karte, 1 Pixel = 4 m (erzeugt)
 data/paper/              Kacheln der Papierkarte (erzeugt)
 data/paper.json          Wege, Gebäude, Siedlungen, Höhenpunkte (erzeugt)
 data/height64.png        Höhenraster für die Höhenanzeige (erzeugt)
+data/real/               Kacheln der Geländeansicht, bis 2 m je Pixel (erzeugt)
+data/objects.json        Bäume und Gebäude (erzeugt)
+data/tiers.png           Tier-Zonen als transparente Ebene (erzeugt)
+data/height16.png        Höhenraster für 3D (erzeugt)
 data/places.json         Ortsnamen (von Hand gepflegt)
 scripts/build_map_data.py   Erzeugt Loot-Daten und Loot-Zonen-Karte
-scripts/build_paper_map.py  Erzeugt die Papierkarte
+scripts/build_paper_map.py  Erzeugt die Papierkarte und die Tier-Zonen
+scripts/build_realistic.py  Erzeugt Geländeansicht, Bäume, Gebäude und 3D-Daten
 vendor/                  Leaflet und Schriften (lokal, keine externen Abrufe)
 ```
 
@@ -78,4 +89,5 @@ vendor/                  Leaflet und Schriften (lokal, keine externen Abrufe)
 
 - **Spieldaten** (`data/`): abgeleitet aus [DayZ Central Economy](https://github.com/BohemiaInteractive/DayZ-Central-Economy) und [DayZ Script Diff](https://github.com/BohemiaInteractive/DayZ-Script-Diff-Experimental) von Bohemia Interactive, lizenziert unter der [Arma and DayZ Public License Share Alike (ADPL-SA)](https://www.bohemia.net/community/licenses/arma-and-dayz-public-license-share-alike-adpl-sa). Daraus folgt: Namensnennung, keine kommerzielle Nutzung, nur für Arma und DayZ, Weitergabe unter gleicher Lizenz. DAYZ® ist eine eingetragene Marke von Bohemia Interactive a.s. Dies ist kein offizielles Produkt von Bohemia Interactive.
 - **Leaflet** (`vendor/leaflet`): BSD-2-Clause, siehe `vendor/leaflet/LICENSE`.
+- **three.js** (`vendor/three`): MIT, siehe `vendor/three/LICENSE`.
 - **Schriften** Barlow Semi Condensed und Big Shoulders Stencil (`vendor/fonts`): SIL Open Font License, siehe Lizenzdateien im Ordner.

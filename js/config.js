@@ -8,6 +8,11 @@ window.MAP_CONFIG = {
   placesUrl: "data/places.json",
   heightUrl: "data/height64.png",
   paperTiles: "data/paper/{z}/{x}/{y}.webp",
+  realTiles: "data/real/{z}/{x}/{y}.webp",
+  realMaxLevel: 5,
+  tiersImage: "data/tiers.png",
+  objectsUrl: "data/objects.json",
+  height3dUrl: "data/height16.png",
   // Optional: eigenes Kartenbild (z. B. Satellitenbild), das die gesamte Karte abdeckt.
   // Pfad eintragen, dann erscheint unter "Grundkarte" ein Schalter dafür.
   overlayImage: null,

@@ -15,7 +15,8 @@ was in den Missionsdateien offen vorliegt:
             aus data/places.json beschriftet.
 
 Ergebnis:
-    data/paper/{z}/{x}/{y}.webp   Kacheln mit Gelände, Schummerung, Höhenlinien
+    data/paper/{z}/{x}/{y}.webp   Papierkarte: Höhenstufen, Schummerung, Höhenlinien
+    data/tiers.png                Tier-Zonen als transparente Ebene
     data/paper.json               Wege, Gebäude, Siedlungen, Höhenpunkte
 
 Aufruf:
@@ -318,6 +319,38 @@ def draw_line(d, pts, idx):
     d.line(pts, fill=col, width=2 if idx else 1)
 
 
+# ---------------------------------------------------------------- Tier-Zonen
+TIER_COLORS = {1: (46, 160, 67), 2: (232, 196, 46), 3: (236, 124, 34), 4: (208, 42, 42)}
+
+
+def render_tiers(mission, world, out_path, alpha=105):
+    """Transparente Ebene: Tier 1 grün bis Tier 4 rot, Militärgebiete schraffiert."""
+    path = os.path.join(mission, "areaflags.map")
+    hdr = np.fromfile(path, dtype="<u4", count=6)
+    w, hgt = int(hdr[0]), int(hdr[1])
+    raw = np.fromfile(path, dtype=np.uint8, offset=24)
+    n = w * hgt
+    usage = raw[: n * 4].view("<u4").reshape(hgt, w)[::-1]
+    value = raw[n * 4: n * 5].reshape(hgt, w)[::-1]
+    tier = np.zeros((hgt, w), np.uint8)
+    for i in range(4):
+        tier = np.where(value & (1 << i), i + 1, tier)
+    mil = (usage & ((1 << 0) | (1 << 17) | (1 << 18))) != 0
+    yy, xx = np.mgrid[0:hgt, 0:w]
+    hatch = ((xx + yy) % 10) < 2
+    idx = tier.copy()                        # 0 = durchsichtig, 1..4 Tier
+    idx = np.where(mil & hatch & (tier > 0), tier + 4, idx)   # 5..8 = Schraffur
+    pal = [0, 0, 0]
+    trans = [0]
+    for t in range(1, 5):
+        pal += list(TIER_COLORS[t]); trans.append(alpha)
+    for t in range(1, 5):
+        pal += [int(c * 0.45) for c in TIER_COLORS[t]]; trans.append(210)
+    im = Image.fromarray(idx.astype(np.uint8), "P")
+    im.putpalette(pal + [0] * (768 - len(pal)))
+    im.save(out_path, transparency=bytes(trans), optimize=True)
+
+
 def write_tiles(im, out_dir):
     if os.path.isdir(out_dir):
         shutil.rmtree(out_dir)
@@ -355,7 +388,8 @@ def main():
 
     im, h4 = render_base(height, conf, world)
     tiles = write_tiles(im, os.path.join(ROOT, "data", "paper"))
-    print("Kacheln:", tiles)
+    print("Kacheln Papierkarte:", tiles)
+    render_tiers(args.mission, world, os.path.join(ROOT, "data", "tiers.png"))
     if args.preview:
         im.resize((2048, 2048), Image.LANCZOS).save(args.preview)
 

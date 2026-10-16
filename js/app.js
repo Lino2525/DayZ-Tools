@@ -87,7 +87,9 @@
       boxZoom: false,
       tapHold: true,
     });
+    map.createPane("tierPane").style.zIndex = 402;
     map.createPane("gridPane").style.zIndex = 405;
+    map.createPane("objectPane").style.zIndex = 407;
     map.createPane("zonePane").style.zIndex = 410;
     map.createPane("dotPane").style.zIndex = 420;
     map.createPane("labelPane").style.zIndex = 615;
@@ -148,65 +150,86 @@
 
 
   // ---------- Grundkarten ----------
-  let lootBase, paperBase, roadLayer, roadRenderer, buildingLayer, buildingRenderer, labelLayer, peakLayer;
+  let paperBase, realBase, tierLayer, roadCasing, roadFill, roadRenderer, objectLayer, labelLayer, peakLayer;
+  let objects = null, objectsLoading = null;
   let style = store.get(KEYS.style, "paper");
-  const baseOpts = Object.assign({ names: true, roads: true, buildings: true }, store.get(KEYS.base, {}));
+  if (style === "loot") style = "paper";
+  const baseOpts = Object.assign({ names: true, roads: true, buildings: true, tiers: false }, store.get(KEYS.base, {}));
 
-  // Kacheln der Papierkarte: Ebene 0 entspricht Leaflet-Zoom -6, Kachelzeile 0 liegt im Norden
-  const PaperTiles = L.TileLayer.extend({
+  // Kachel-Pyramiden: Ebene 0 entspricht Leaflet-Zoom -6, Kachelzeile 0 liegt im Norden
+  const PyramidTiles = L.TileLayer.extend({
     getTileUrl(c) {
       const t = c.z + 6;
       return L.Util.template(this._url, { z: t, x: c.x, y: c.y + Math.pow(2, t) });
     },
   });
+  const pyramid = (url, maxLevel, cls) => new PyramidTiles(url, {
+    tileSize: 256, minZoom: -10, maxZoom: 10, minNativeZoom: -6, maxNativeZoom: maxLevel - 6,
+    bounds: bounds, noWrap: true, keepBuffer: 4, className: cls,
+  });
 
   function initBasemaps() {
-    lootBase = L.imageOverlay(CFG.baseImage, bounds, { className: "base-image", interactive: false });
-    if (paper) {
-      paperBase = new PaperTiles(CFG.paperTiles, {
-        tileSize: paper.tiles.tileSize, minZoom: -10, maxZoom: 10, minNativeZoom: -6, maxNativeZoom: paper.tiles.maxZoom - 6,
-        bounds: bounds, noWrap: true, keepBuffer: 4, className: "paper-tiles",
-      });
-      roadRenderer = L.canvas({ pane: "gridPane", padding: 0.4 });
-      buildingRenderer = L.canvas({ pane: "gridPane", padding: 0.3 });
-      buildRoads();
-      buildBuildings();
-    } else {
-      style = "loot";
-      $(".styleswitch").hidden = true;
-    }
+    if (!paper) { $(".styleswitch").hidden = true; return; }
+    paperBase = pyramid(CFG.paperTiles, paper.tiles.maxZoom, "paper-tiles");
+    realBase = pyramid(CFG.realTiles, CFG.realMaxLevel, "real-tiles");
+    tierLayer = L.imageOverlay(CFG.tiersImage, bounds, { pane: "tierPane", interactive: false, className: "tier-overlay" });
+    roadRenderer = L.canvas({ pane: "gridPane", padding: 0.4 });
+    buildRoads();
+    objectLayer = new ObjectLayer({ pane: "objectPane", bounds: bounds, tileSize: 256, noWrap: true, minZoom: -10, maxZoom: 10, updateWhenZooming: false, keepBuffer: 2 });
     buildLabels();
 
-    const sw = $(".styleswitch");
-    sw.addEventListener("click", (e) => {
+    $(".styleswitch").addEventListener("click", (e) => {
       const b = e.target.closest("[data-style]");
       if (b) setStyle(b.dataset.style);
+      const t = e.target.closest("#tier-toggle");
+      if (t) setOpt("tiers", !baseOpts.tiers);
     });
-    ["names", "roads", "buildings"].forEach((k) => {
+    ["names", "roads", "buildings", "tiers"].forEach((k) => {
       const cb = $("#opt-" + k);
+      if (!cb) return;
       cb.checked = baseOpts[k];
-      cb.addEventListener("change", () => { baseOpts[k] = cb.checked; store.set(KEYS.base, baseOpts); applyBase(); });
+      cb.addEventListener("change", () => setOpt(k, cb.checked));
     });
     setStyle(style);
+  }
+
+  function setOpt(k, v) {
+    baseOpts[k] = v;
+    store.set(KEYS.base, baseOpts);
+    const cb = $("#opt-" + k);
+    if (cb) cb.checked = v;
+    applyBase();
   }
 
   function setStyle(s) {
     style = s;
     store.set(KEYS.style, s);
     document.body.dataset.style = s;
-    document.querySelectorAll(".style-btn").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.style === s)));
-    if (s === "paper" && paperBase) { lootBase.remove(); paperBase.addTo(map); paperBase.bringToBack(); }
-    else { if (paperBase) paperBase.remove(); lootBase.addTo(map); lootBase.bringToBack(); }
+    document.querySelectorAll(".style-btn[data-style]").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.style === s)));
+    const base = s === "real" ? realBase : paperBase;
+    [paperBase, realBase].forEach((l) => { if (l !== base && map.hasLayer(l)) l.remove(); });
+    if (!map.hasLayer(base)) base.addTo(map);
+    base.bringToBack();
+    restyleRoads();
+    if (objectLayer && map.hasLayer(objectLayer)) objectLayer.redraw();
     applyBase();
   }
 
   function applyBase() {
-    if (!map) return;
+    if (!map || !paper) return;
     const z = map.getZoom();
+    document.body.dataset.tiers = baseOpts.tiers ? "on" : "off";
+    $("#tier-toggle").setAttribute("aria-pressed", String(baseOpts.tiers));
+    toggle(tierLayer, baseOpts.tiers);
     toggle(labelLayer, baseOpts.names);
     toggle(peakLayer, baseOpts.names && style === "paper" && z >= -3.5);
-    toggle(roadLayer, baseOpts.roads);
-    toggle(buildingLayer, baseOpts.buildings && style === "paper" && z >= -2.25);
+    toggle(roadCasing, baseOpts.roads);
+    toggle(roadFill, baseOpts.roads);
+    if (baseOpts.roads && map.hasLayer(roadFill)) roadFill.eachLayer((l) => l.bringToFront());
+    const objMin = style === "real" ? -4 : -2.25;
+    const wantObjects = baseOpts.buildings && z >= objMin;
+    if (wantObjects && !objects) loadObjects();
+    toggle(objectLayer, wantObjects && !!objects);
     styleRoads();
   }
   function toggle(layer, on) {
@@ -215,47 +238,236 @@
     if (!on && map.hasLayer(layer)) layer.remove();
   }
 
+  // Wege: Papierkarte farbig mit Umrandung, Geländeansicht als staubige Pisten
   const ROAD = {
-    1: { color: "#7E4F25", w: 3.4 },
-    2: { color: "#93653A", w: 2.4 },
-    3: { color: "#A88460", w: 1.4, dash: true },
+    paper: {
+      1: { casing: "#4A2A12", fill: "#E58A2E", w: 3.6 },
+      2: { casing: "#6B4A2A", fill: "#F4E2A8", w: 2.5 },
+      3: { casing: null, fill: "#7E5A38", w: 1.3, dash: true },
+    },
+    real: {
+      1: { casing: "rgba(96,78,52,0.45)", fill: "#E2D2AC", w: 3.4 },
+      2: { casing: "rgba(96,78,52,0.35)", fill: "#D8C7A0", w: 2.4 },
+      3: { casing: null, fill: "rgba(196,176,138,0.85)", w: 1.3 },
+    },
   };
   function buildRoads() {
-    roadLayer = L.layerGroup();
-    paper.roads.forEach(([cls, pts]) => {
-      const st = ROAD[cls] || ROAD[3];
-      const line = L.polyline(pts.map(([x, z]) => [z, x]), {
-        renderer: roadRenderer, color: st.color, weight: st.w, opacity: 0.9, lineCap: "round", lineJoin: "round",
-        interactive: false, smoothFactor: 1.2,
-      });
-      line._cls = cls;
-      roadLayer.addLayer(line);
+    roadCasing = L.layerGroup();
+    roadFill = L.layerGroup();
+    const sorted = [...paper.roads].sort((a, b) => b[0] - a[0]);   // Hauptwege zuletzt, also oben
+    sorted.forEach(([cls, pts]) => {
+      const ll = pts.map(([x, z]) => [z, x]);
+      const opts = { renderer: roadRenderer, lineCap: "round", lineJoin: "round", interactive: false, smoothFactor: 1.2 };
+      const c = L.polyline(ll, opts); c._cls = cls; roadCasing.addLayer(c);
+      const f = L.polyline(ll, opts); f._cls = cls; roadFill.addLayer(f);
     });
   }
+  let roadKey = "";
+  function restyleRoads() { roadKey = ""; styleRoads(); }
   function styleRoads() {
-    if (!roadLayer || !map) return;
+    if (!roadFill || !map) return;
     const z = map.getZoom();
-    const k = Math.max(0.35, Math.min(2.2, 0.55 + (z + 3) * 0.32));
-    const onLoot = style === "loot";
-    roadLayer.eachLayer((l) => {
-      const st = ROAD[l._cls] || ROAD[3];
-      if (l._cls === 3 && z < -3.5) { l.setStyle({ opacity: 0 }); return; }
+    const k = Math.max(0.4, Math.min(2.4, 0.6 + (z + 3) * 0.34));
+    const key = style + ":" + k.toFixed(2) + ":" + (z < -3.5);
+    if (key === roadKey) return;
+    roadKey = key;
+    const S = ROAD[style] || ROAD.paper;
+    const set = (group, casing) => group.eachLayer((l) => {
+      const st = S[l._cls] || S[3];
+      const hidden = (l._cls === 3 && z < -3.5) || (casing && !st.casing);
       l.setStyle({
-        weight: st.w * k,
-        opacity: onLoot ? 0.55 : 0.9,
-        dashArray: st.dash && z >= -1.5 ? `${4 * k} ${3 * k}` : null,
+        color: casing ? st.casing || "transparent" : st.fill,
+        weight: casing ? st.w * k + 2 : st.w * k,
+        opacity: hidden ? 0 : 1,
+        dashArray: !casing && st.dash && z >= -1.5 ? `${4 * k} ${3 * k}` : null,
       });
     });
+    set(roadCasing, true);
+    set(roadFill, false);
   }
 
-  function buildBuildings() {
-    buildingLayer = L.layerGroup();
-    const s = 5;  // halbe Kantenlänge in Metern (ungefähre Gebäudegröße)
-    paper.buildings.forEach(([x, z, yaw]) => {
-      const r = (yaw * Math.PI) / 180, c = Math.cos(r), n = Math.sin(r);
-      const pts = [[-s, -s], [s, -s], [s, s], [-s, s]].map(([dx, dz]) => [z + (-dx * n + dz * c), x + (dx * c + dz * n)]);
-      buildingLayer.addLayer(L.polygon(pts, { renderer: buildingRenderer, stroke: false, fillColor: "#4E4236", fillOpacity: 0.85, interactive: false }));
-    });
+  // ---------- Bäume und Gebäude ----------
+  const BUCKET = 256;
+  function loadObjects() {
+    if (objectsLoading) return;
+    objectsLoading = fetch(CFG.objectsUrl).then((r) => r.json()).then((d) => {
+      const nb = Math.ceil(W / BUCKET);
+      const buckets = new Map();
+      const add = (kind, i, x, z) => {
+        const key = Math.min(nb - 1, Math.max(0, Math.floor(x / BUCKET))) * nb + Math.min(nb - 1, Math.max(0, Math.floor(z / BUCKET)));
+        let b = buckets.get(key);
+        if (!b) { b = { t: [], h: [] }; buckets.set(key, b); }
+        b[kind].push(i);
+      };
+      for (let i = 0; i < d.trees.length; i += 4) add("t", i, d.trees[i], d.trees[i + 1]);
+      for (let i = 0; i < d.houses.length; i += 4) add("h", i, d.houses[i], d.houses[i + 1]);
+      objects = Object.assign(d, { nb, buckets });
+      applyBase();
+    }).catch(() => { objectsLoading = null; });
+  }
+
+  // Größe der Baumkronen in Metern und Farben je Art
+  const TREE = {
+    fig_s: { r: 2.1, c: [104, 116, 52] }, fig_m: { r: 2.7, c: [96, 110, 48] }, fig_l: { r: 3.3, c: [88, 102, 44] },
+    conifer: { r: 2.6, c: [58, 76, 44] }, broadleaf: { r: 3.6, c: [82, 100, 46] },
+  };
+  const MAT = {
+    mud: [201, 178, 138], stone: [190, 182, 166], metal: [146, 142, 132], wood: [138, 108, 76],
+    military: [168, 160, 128], tent: [118, 112, 78], wreck: [150, 150, 150],
+  };
+  const RUST = [156, 106, 72];
+  const CARS = [[226, 226, 220], [70, 96, 140], [196, 120, 50], [120, 130, 92], [150, 40, 36], [200, 190, 120]];
+  const rnd = (i) => { let h = (i * 2654435761) >>> 0; h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; return (h & 0xffff) / 65535; };
+  const rgb = (c, f = 1, a = 1) => `rgba(${Math.round(c[0] * f)},${Math.round(c[1] * f)},${Math.round(c[2] * f)},${a})`;
+
+  const ObjectLayer = L.GridLayer.extend({
+    createTile(coords) {
+      const tile = document.createElement("canvas");
+      const size = this.getTileSize();
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      tile.width = size.x * dpr; tile.height = size.y * dpr;
+      tile.style.width = size.x + "px"; tile.style.height = size.y + "px";
+      if (objects) drawObjects(tile.getContext("2d"), coords, size.x, dpr);
+      return tile;
+    },
+  });
+
+  function drawObjects(ctx, coords, size, dpr) {
+    ctx.scale(dpr, dpr);
+    const s = Math.pow(2, coords.z);
+    const x0 = (coords.x * size) / s, x1 = x0 + size / s;
+    const zTop = (-coords.y * size) / s, zBot = zTop - size / s;
+    const m = 30;
+    const { nb, buckets, trees, houses, houseTypes, treeKinds } = objects;
+    const tIdx = [], hIdx = [];
+    for (let bx = Math.max(0, Math.floor((x0 - m) / BUCKET)); bx <= Math.min(nb - 1, Math.floor((x1 + m) / BUCKET)); bx++) {
+      for (let bz = Math.max(0, Math.floor((zBot - m) / BUCKET)); bz <= Math.min(nb - 1, Math.floor((zTop + m) / BUCKET)); bz++) {
+        const b = buckets.get(bx * nb + bz);
+        if (b) { tIdx.push(...b.t); hIdx.push(...b.h); }
+      }
+    }
+    const px = (X) => (X - x0) * s, py = (Z) => (zTop - Z) * s;
+    const real = style === "real";
+
+    const housePoly = (i, dx = 0, dy = 0) => {
+      const [w, l] = houseTypes[houses[i + 3]];
+      const r = (houses[i + 2] * Math.PI) / 180, c = Math.cos(r), n = Math.sin(r);
+      const X = houses[i], Z = houses[i + 1];
+      ctx.beginPath();
+      [[-w / 2, -l / 2], [w / 2, -l / 2], [w / 2, l / 2], [-w / 2, l / 2]].forEach(([a, b], k) => {
+        const wx = X + a * c + b * n, wz = Z - a * n + b * c;
+        const sx = px(wx) + dx, sy = py(wz) + dy;
+        k ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy);
+      });
+      ctx.closePath();
+    };
+
+    if (!real) {
+      // Papierkarte: flache Grundrisse, Bäume als Punkte
+      ctx.fillStyle = "rgba(108,140,74,0.85)";
+      const tr = Math.max(1.2, 2.4 * s);
+      for (const i of tIdx) {
+        const k = treeKinds[trees[i + 2]];
+        if (!TREE[k]) continue;
+        ctx.beginPath(); ctx.arc(px(trees[i]), py(trees[i + 1]), tr * (TREE[k].r / 3), 0, 6.283); ctx.fill();
+      }
+      ctx.fillStyle = "#4E4236";
+      for (const i of hIdx) { if (houseTypes[houses[i + 3]][3] === "wreck") continue; housePoly(i); ctx.fill(); }
+      return;
+    }
+
+    // Schatten (Licht von Nordwest)
+    ctx.fillStyle = "rgba(48,34,18,0.26)";
+    for (const i of hIdx) {
+      const t = houseTypes[houses[i + 3]];
+      const hgt = t[3] === "wreck" ? 1.5 : 1.5 + t[2] * 3;
+      const off = hgt * 0.55 * s;
+      housePoly(i, off, off); ctx.fill();
+    }
+    if (s >= 0.18) {
+      for (const i of tIdx) {
+        const k = treeKinds[trees[i + 2]], T = TREE[k];
+        if (!T) continue;
+        const R = T.r * s;
+        ctx.beginPath();
+        ctx.ellipse(px(trees[i]) + R * 0.7, py(trees[i + 1]) + R * 0.6, R * 1.05, R * 0.85, 0.6, 0, 6.283);
+        ctx.fill();
+      }
+    }
+
+    // Dächer
+    for (const i of hIdx) {
+      const t = houseTypes[houses[i + 3]], mat = t[3], v = rnd(i);
+      let c = MAT[mat] || MAT.stone;
+      if (mat === "metal" && v > 0.55) c = RUST;
+      if (mat === "wreck") c = CARS[Math.floor(v * CARS.length)];
+      housePoly(i);
+      ctx.fillStyle = rgb(c, 0.92 + v * 0.14);
+      ctx.fill();
+      if (s >= 0.7) {
+        ctx.lineWidth = Math.max(0.6, 0.35 * s);
+        ctx.strokeStyle = rgb(c, 0.66);
+        ctx.stroke();
+      }
+      if (s >= 1.5 && mat === "mud") {
+        // Brüstung am Flachdach
+        const [w, l] = t;
+        const r = (houses[i + 2] * Math.PI) / 180, cc = Math.cos(r), nn = Math.sin(r);
+        const X = houses[i], Z = houses[i + 1], ins = 0.6;
+        ctx.beginPath();
+        [[-w / 2 + ins, -l / 2 + ins], [w / 2 - ins, -l / 2 + ins], [w / 2 - ins, l / 2 - ins], [-w / 2 + ins, l / 2 - ins]].forEach(([a, b], k) => {
+          const sx = px(X + a * cc + b * nn), sy = py(Z - a * nn + b * cc);
+          k ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy);
+        });
+        ctx.closePath();
+        ctx.fillStyle = rgb(c, 0.9);
+        ctx.fill();
+      }
+    }
+
+    // Kleinteile: Stümpfe, Stämme, Heuballen
+    if (s >= 0.7) {
+      for (const i of tIdx) {
+        const k = treeKinds[trees[i + 2]];
+        const X = px(trees[i]), Y = py(trees[i + 1]);
+        if (k === "log") {
+          const r = (trees[i + 3] * Math.PI) / 180, L2 = 3 * s;
+          ctx.strokeStyle = "rgba(92,70,46,0.9)"; ctx.lineWidth = Math.max(1, 0.5 * s);
+          ctx.beginPath(); ctx.moveTo(X - Math.sin(r) * L2, Y + Math.cos(r) * L2); ctx.lineTo(X + Math.sin(r) * L2, Y - Math.cos(r) * L2); ctx.stroke();
+        } else if (k === "stump") {
+          ctx.fillStyle = "rgba(96,74,50,0.9)"; ctx.beginPath(); ctx.arc(X, Y, Math.max(0.8, 0.4 * s), 0, 6.283); ctx.fill();
+        } else if (k === "hay") {
+          ctx.fillStyle = "rgba(206,182,104,0.95)"; ctx.beginPath(); ctx.arc(X, Y, Math.max(1, 0.8 * s), 0, 6.283); ctx.fill();
+        }
+      }
+    }
+
+    // Baumkronen
+    for (const i of tIdx) {
+      const k = treeKinds[trees[i + 2]], T = TREE[k];
+      if (!T) continue;
+      const v = rnd(i), X = px(trees[i]), Y = py(trees[i + 1]);
+      const R = T.r * s * (0.85 + v * 0.3);
+      const c = T.c, f = 0.9 + v * 0.2;
+      if (R < 1.1) { ctx.fillStyle = rgb(c, f * 0.85); ctx.fillRect(X - 0.8, Y - 0.8, 1.6, 1.6); continue; }
+      if (R < 4) {
+        ctx.fillStyle = rgb(c, f * 0.85); ctx.beginPath(); ctx.arc(X, Y, R, 0, 6.283); ctx.fill();
+        ctx.fillStyle = rgb(c, f * 1.18); ctx.beginPath(); ctx.arc(X - R * 0.3, Y - R * 0.3, R * 0.5, 0, 6.283); ctx.fill();
+        continue;
+      }
+      // Krone aus mehreren Blattbüscheln mit Licht von Nordwest
+      const lobes = k === "conifer" ? 1 : 5;
+      for (let j = 0; j < lobes; j++) {
+        const a = v * 6.283 + j * 1.256, d = lobes === 1 ? 0 : R * 0.42;
+        const cx = X + Math.cos(a) * d, cy = Y + Math.sin(a) * d, rr = lobes === 1 ? R : R * 0.62;
+        const g = ctx.createRadialGradient(cx - rr * 0.35, cy - rr * 0.35, rr * 0.1, cx, cy, rr);
+        g.addColorStop(0, rgb(c, f * 1.35));
+        g.addColorStop(0.6, rgb(c, f));
+        g.addColorStop(1, rgb(c, f * 0.62));
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(cx, cy, rr, 0, 6.283); ctx.fill();
+      }
+    }
   }
 
   function placeClass(p) {
@@ -739,6 +951,22 @@
 
   function initTools() {
     $("#tool-measure").addEventListener("click", () => setMode("measure"));
+    $("#tool-3d").addEventListener("click", async () => {
+      if (mode) setMode(null);
+      const btn = $("#tool-3d");
+      btn.disabled = true;
+      try {
+        loadObjects();
+        if (objectsLoading) await objectsLoading;
+        const c = map.getCenter();
+        const m = await import("./view3d.js");
+        await m.open3D({ cfg: CFG, world: W, center: { x: c.lng, z: c.lat }, paper, objects, onClose: () => btn.focus() });
+      } catch (e) {
+        toast("Die 3D-Ansicht konnte nicht geladen werden");
+      } finally {
+        btn.disabled = false;
+      }
+    });
     $("#tool-marker").addEventListener("click", () => setMode("place"));
     $("#zoom-in").addEventListener("click", () => map.zoomIn());
     $("#zoom-out").addEventListener("click", () => map.zoomOut());
@@ -760,7 +988,7 @@
       openMarkerDialog(null, e.latlng);
     });
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && mode && !$("#marker-dialog").open) setMode(null);
+      if (e.key === "Escape" && mode && !$("#marker-dialog").open && !document.querySelector(".v3d")) setMode(null);
     });
   }
 
