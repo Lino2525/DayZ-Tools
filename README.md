@@ -16,7 +16,9 @@ Eine Karte für **DayZ Badlands (Nasdara)** mit Filter-Legende, gebaut direkt au
 - **Höhe** unter dem Mauszeiger
 - **Koordinaten** unter dem Mauszeiger, kopieren per Klick oder Strg+C, Sprung zu einer GPS-Koordinate
 - **Messen**: Entfernung und Kompassrichtung zwischen zwei Punkten
-- **Eigene Marker** (Basis, Versteck, Fahrzeug, …) per Rechtsklick, gespeichert im Browser, mit Export und Import als Datei
+- **Live-Räume** mit 4-stelligem Code: Wer im selben Raum ist, sieht Zeichnungen und Marker der anderen sofort, dazu wer gerade online ist
+- **Zeichnen**: Stift, Pfeil und Kreis in 8 Farben. Andere sehen den Strich schon während du zeichnest. Das **X** löscht alles, was du selbst gezeichnet hast, die Zeichnungen der anderen bleiben
+- **Marker** (Basis, Versteck, Fahrzeug, …) per Rechtsklick. Im Raum für alle sichtbar und bearbeitbar, ohne Raum nur im eigenen Browser, mit Export und Import als Datei
 
 ## Wie die Papierkarte entsteht
 
@@ -38,6 +40,16 @@ Das eigentliche Terrain von Nasdara (Höhenmodell, Straßennetz, Ortsnamen) ist 
 ```
 
 `x` und `z` sind die Koordinaten, die die Karte oben rechts anzeigt. `type` ist `city`, `town`, `village`, `poi` oder `region` und bestimmt die Schriftgröße. Nach dem Speichern ist der Name nach ein bis zwei Minuten auf der Seite.
+
+## Live-Räume
+
+Beim Öffnen der Seite fragt sie nach deinem Namen. Danach kannst du einen neuen Raum öffnen (du bekommst einen Code wie `K7QD`) oder mit dem Code eines Mitspielers beitreten. „Einladung kopieren“ kopiert einen Link, der direkt in den Raum führt.
+
+Technisch läuft das über einen kostenlosen, öffentlichen MQTT-Server (`broker.emqx.io`), ein Konto braucht niemand. Jede Zeichnung und jeder Marker liegt dort als gespeicherte Nachricht im Raum, deshalb sieht auch, wer später dazukommt, den aktuellen Stand. Wichtig:
+
+- Wer den Code kennt, kann mitlesen und mitzeichnen. Für Stash-Positionen also lieber nicht allzu offensichtliche Notizen schreiben.
+- Der Server ist ein öffentlicher Testdienst ohne Garantie. Fällt er aus oder wird er gelöscht, sind die Zeichnungen weg. Der Server steht in `js/config.js` unter `room.broker` und lässt sich austauschen; alle müssen denselben nutzen.
+- Zum Testen ohne Internet kann die lokal geöffnete Seite mit `?broker=ws://localhost:8883` einen eigenen Server nutzen.
 
 ## Online stellen mit GitHub Pages
 
@@ -69,6 +81,7 @@ css/style.css            Gestaltung
 js/config.js             Ebenen, Farben, Marker-Arten
 js/app.js                Kartenlogik
 js/view3d.js             3D-Ansicht (wird erst beim Öffnen geladen)
+js/room.js               Live-Räume über MQTT
 data/nasdara.json        Punkte und Zonen (erzeugt)
 data/nasdara-base.png    Loot-Zonen-Karte, 1 Pixel = 4 m (erzeugt)
 data/paper/              Kacheln der Papierkarte (erzeugt)
@@ -90,4 +103,5 @@ vendor/                  Leaflet und Schriften (lokal, keine externen Abrufe)
 - **Spieldaten** (`data/`): abgeleitet aus [DayZ Central Economy](https://github.com/BohemiaInteractive/DayZ-Central-Economy) und [DayZ Script Diff](https://github.com/BohemiaInteractive/DayZ-Script-Diff-Experimental) von Bohemia Interactive, lizenziert unter der [Arma and DayZ Public License Share Alike (ADPL-SA)](https://www.bohemia.net/community/licenses/arma-and-dayz-public-license-share-alike-adpl-sa). Daraus folgt: Namensnennung, keine kommerzielle Nutzung, nur für Arma und DayZ, Weitergabe unter gleicher Lizenz. DAYZ® ist eine eingetragene Marke von Bohemia Interactive a.s. Dies ist kein offizielles Produkt von Bohemia Interactive.
 - **Leaflet** (`vendor/leaflet`): BSD-2-Clause, siehe `vendor/leaflet/LICENSE`.
 - **three.js** (`vendor/three`): MIT, siehe `vendor/three/LICENSE`.
+- **MQTT.js** (`vendor/mqtt`): MIT, siehe `vendor/mqtt/LICENSE.md`.
 - **Schriften** Barlow Semi Condensed und Big Shoulders Stencil (`vendor/fonts`): SIL Open Font License, siehe Lizenzdateien im Ordner.

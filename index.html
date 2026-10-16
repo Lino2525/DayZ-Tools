@@ -23,6 +23,33 @@
         </button>
       </header>
 
+      <section class="room" id="room" aria-labelledby="room-title">
+        <h2 class="room-title" id="room-title">Live-Raum</h2>
+        <div id="room-off">
+          <p class="help">Zeichnungen und Marker live mit deinen Mitspielern teilen.</p>
+          <div class="room-actions">
+            <button type="button" class="btn primary" id="room-create">Raum erstellen</button>
+            <form class="room-join" id="room-join" autocomplete="off">
+              <label class="sr-only" for="room-code-input">Raum-Code</label>
+              <input id="room-code-input" maxlength="4" placeholder="Code" autocapitalize="characters" spellcheck="false">
+              <button type="submit" class="btn">Beitreten</button>
+            </form>
+          </div>
+        </div>
+        <div id="room-on" hidden>
+          <div class="room-head">
+            <span class="room-code" id="room-code"></span>
+            <span class="room-status" id="room-status" role="status"></span>
+          </div>
+          <ul class="room-people" id="room-people" aria-label="Im Raum"></ul>
+          <div class="room-actions">
+            <button type="button" class="btn" id="room-copy">Einladung kopieren</button>
+            <button type="button" class="btn ghost" id="room-leave">Verlassen</button>
+          </div>
+          <p class="help">Wer den Code kennt, kann mitsehen und mitzeichnen.</p>
+        </div>
+      </section>
+
       <form class="goto" id="goto" autocomplete="off">
         <label for="goto-input">Zu Koordinate springen</label>
         <div class="goto-row">
@@ -45,10 +72,10 @@
 
       <details class="group mine" id="mine" open>
         <summary>
-          <span class="group-title">Eigene Marker</span>
+          <span class="group-title" id="mine-title">Eigene Marker</span>
           <span class="group-count" id="mine-count">0</span>
         </summary>
-        <p class="help">Rechtsklick auf die Karte (am Handy lange drücken) setzt einen Marker. Gespeichert wird vorerst nur in diesem Browser.</p>
+        <p class="help" id="mine-help">Rechtsklick auf die Karte (am Handy lange drücken) setzt einen Marker. Ohne Raum wird nur in diesem Browser gespeichert.</p>
         <ul class="mine-list" id="mine-list"></ul>
         <div class="mine-actions">
           <button type="button" class="btn ghost" id="export-btn">Exportieren</button>
@@ -96,6 +123,26 @@
     <main class="mapwrap">
       <div id="map" aria-label="Karte von Nasdara"></div>
 
+      <button type="button" class="room-badge" id="room-badge" hidden>
+        <span class="room-dot" aria-hidden="true"></span><span id="room-badge-text"></span>
+      </button>
+
+      <div class="drawbar" id="drawbar" role="toolbar" aria-label="Zeichnen" hidden>
+        <div class="seg draw-tools" role="radiogroup" aria-label="Werkzeug">
+          <button type="button" role="radio" data-shape="pen" title="Freihand">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15c3-1 4-6 7-6s2 5 7 3"/></svg><span>Stift</span></button>
+          <button type="button" role="radio" data-shape="arrow" title="Pfeil">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16L16 4M9 4h7v7"/></svg><span>Pfeil</span></button>
+          <button type="button" role="radio" data-shape="circle" title="Kreis">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6"/></svg><span>Kreis</span></button>
+        </div>
+        <div class="draw-colors" role="radiogroup" aria-label="Farbe" id="draw-colors"></div>
+        <button type="button" class="draw-clear" id="draw-clear" title="Alles löschen, was du gezeichnet hast" aria-label="Alles löschen, was du gezeichnet hast">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg>
+        </button>
+        <button type="button" class="btn draw-done" id="draw-done">Fertig</button>
+      </div>
+
       <button class="readout" id="readout" type="button" title="Klicken oder Strg+C kopiert die Koordinate unter dem Mauszeiger">
         <span class="readout-k">X</span><span id="rx">00000</span>
         <span class="readout-k">Y</span><span id="ry">00000</span>
@@ -122,6 +169,9 @@
         </button>
         <button class="tool" id="tool-3d" type="button" title="Ausschnitt um die Kartenmitte in 3D ansehen">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2l7 4v8l-7 4-7-4V6zM3 6l7 4 7-4M10 10v8"/></svg><span>3D</span>
+        </button>
+        <button class="tool" id="tool-draw" type="button" aria-pressed="false">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13.5 3.5l3 3L7 16H4v-3zM11.5 5.5l3 3"/></svg><span>Zeichnen</span>
         </button>
         <button class="tool" id="tool-measure" type="button" aria-pressed="false">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15L15 3l2 2L5 17zM7 11l1.5 1.5M9.5 8.5L11 10M12 6l1.5 1.5"/></svg><span>Messen</span>
@@ -161,7 +211,29 @@
     </form>
   </dialog>
 
+  <dialog id="start-dialog" class="dialog start-dialog">
+    <form method="dialog" id="start-form">
+      <h2>Nasdara Feldkarte</h2>
+      <p class="start-lead">Öffne einen Raum für deine Gruppe oder tritt mit einem Code bei. Im Raum seht ihr Zeichnungen und Marker sofort bei allen.</p>
+      <label for="start-name">Dein Name</label>
+      <input id="start-name" maxlength="20" placeholder="z. B. Lino" autocomplete="nickname">
+      <div class="start-choices">
+        <button type="button" class="btn primary" id="start-create">Neuen Raum öffnen</button>
+        <div class="start-join">
+          <label class="sr-only" for="start-code">Raum-Code</label>
+          <input id="start-code" maxlength="4" placeholder="Code" autocapitalize="characters" spellcheck="false">
+          <button type="button" class="btn" id="start-join">Beitreten</button>
+        </div>
+        <button type="button" class="btn ghost" id="start-rejoin" hidden></button>
+      </div>
+      <p class="start-error" id="start-error" role="alert" hidden></p>
+      <button type="button" class="linklike" id="start-skip">Ohne Raum weiter</button>
+    </form>
+  </dialog>
+
   <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="vendor/mqtt/mqtt.min.js"></script>
+  <script src="js/room.js"></script>
   <script src="js/config.js"></script>
   <script src="js/app.js"></script>
 </body>

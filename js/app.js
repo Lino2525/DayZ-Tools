@@ -12,6 +12,12 @@
     markers: "nasdara.markers.v1",
     style: "nasdara.style.v1",
     base: "nasdara.base.v1",
+    me: "nasdara.me.v1",
+    name: "nasdara.name.v1",
+    color: "nasdara.color.v1",
+    lastRoom: "nasdara.lastroom.v1",
+    drawings: "nasdara.drawings.v1",
+    shape: "nasdara.shape.v1",
   };
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -93,6 +99,7 @@
     map.createPane("zonePane").style.zIndex = 410;
     map.createPane("dotPane").style.zIndex = 420;
     map.createPane("labelPane").style.zIndex = 615;
+    map.createPane("drawPane").style.zIndex = 630;
     map.createPane("measurePane").style.zIndex = 640;
     map.createPane("minePane").style.zIndex = 660;
 
@@ -133,6 +140,8 @@
     initTools();
     initMarkers();
     initPanel();
+    initDraw();
+    initRoom();
 
     map.on("popupopen", () => { if (mode) map.closePopup(); });
     map.on("zoomend", onZoom);
@@ -751,6 +760,7 @@
     if (b.dataset.act === "copy") copyCoord(x, z);
     if (b.dataset.act === "measure") { map.closePopup(); setMode("measure"); measureStart(L.latLng(z, x)); }
     if (b.dataset.act === "edit") { map.closePopup(); openMarkerDialog(markers.find((m) => m.id === b.dataset.id)); }
+    if (b.dataset.act === "del-draw") { map.closePopup(); deleteDrawings([b.dataset.id]); toast("Zeichnung gelöscht"); }
   });
 
   // ---------- Raster ----------
@@ -887,7 +897,9 @@
   const measure = { a: null, b: null, layer: null, line: null };
 
   function setMode(m) {
+    const prev = mode;
     mode = mode === m ? null : m;
+    if (prev === "draw" || mode === "draw") setDrawInteractions(mode === "draw");
     $("#tool-measure").setAttribute("aria-pressed", String(mode === "measure"));
     $("#tool-marker").setAttribute("aria-pressed", String(mode === "place"));
     const el = map.getContainer();
@@ -905,8 +917,10 @@
         + " <kbd>Esc</kbd> beendet das Messen.";
     } else if (mode === "place") {
       el.innerHTML = "Klicke auf die Stelle für deinen Marker. <kbd>Esc</kbd> bricht ab.";
+    } else if (mode === "draw") {
+      el.innerHTML = "";
     }
-    el.hidden = !mode;
+    el.hidden = !mode || mode === "draw";
   }
 
   function bearing(a, b) {
@@ -984,7 +998,7 @@
       if (mode === "measure" && measure.a && !measure.b) measureUpdate(e.latlng, false);
     });
     map.on("contextmenu", (e) => {
-      if (!bounds.contains(e.latlng)) return;
+      if (mode === "draw" || !bounds.contains(e.latlng)) return;
       openMarkerDialog(null, e.latlng);
     });
     document.addEventListener("keydown", (e) => {
@@ -1014,7 +1028,7 @@
       if (editing.id) {
         Object.assign(markers.find((m) => m.id === editing.id), { name, type, note, updated: now });
       } else {
-        markers.push({ id: "m" + now.toString(36) + Math.random().toString(36).slice(2, 6), x: editing.x, z: editing.z, name, type, note, created: now, updated: now });
+        markers.push({ id: "m" + now.toString(36) + Math.random().toString(36).slice(2, 6), x: editing.x, z: editing.z, name, type, note, created: now, updated: now, by: me.id, byName: me.name });
       }
       saveMarkers();
       dlg.close();
@@ -1070,7 +1084,7 @@
   }
 
   function saveMarkers() {
-    store.set(KEYS.markers, markers.map(({ _ll, ...m }) => m));
+    if (!syncMarkers()) store.set(KEYS.markers, markers.map(({ _ll, ...m }) => m));
     renderMarkers();
   }
 
@@ -1080,7 +1094,7 @@
       const ll = L.marker([m.z, m.x], { icon: mineIcon(m), pane: "minePane", riseOnHover: true });
       ll.bindPopup(() =>
         `<div class="pop-title"><span class="sym mine" style="--s:16px"><span>${esc(typeOf(m.type).glyph)}</span></span><span>${esc(m.name)}</span></div>` +
-        `<div class="pop-sub">${esc(typeOf(m.type).label)}</div>` +
+        `<div class="pop-sub">${esc(typeOf(m.type).label)}${room && m.byName ? `, von ${esc(m.by === me.id ? "dir" : m.byName)}` : ""}</div>` +
         (m.note ? `<p class="pop-note">${esc(m.note)}</p>` : "") +
         `<dl class="pop-meta"><dt>Koordinate</dt><dd>${coordText(m.x, m.z)}</dd></dl>` +
         `<div class="pop-actions"><button type="button" class="btn" data-act="edit" data-id="${m.id}">Bearbeiten</button>` +
@@ -1111,6 +1125,409 @@
     $("#m-delete").hidden = !existing;
     dlg.showModal();
     $("#m-name").focus();
+  }
+
+  // ---------- Live-Raum ----------
+  const R = window.NasdaraRoom;
+  let room = null;                       // aktive Verbindung oder null
+  const me = (() => {
+    let id = store.get(KEYS.me, null);
+    if (!id) { id = "u" + Math.random().toString(36).slice(2, 10); store.set(KEYS.me, id); }
+    const name = store.get(KEYS.name, "");
+    const colors = CFG.drawColors;
+    const color = store.get(KEYS.color, colors[Math.floor(Math.random() * 6)]);
+    return { id, name, color };
+  })();
+  let localMarkers = markers;            // Marker ohne Raum (localStorage)
+  const published = new Map();           // id -> JSON des zuletzt gesendeten Markers
+
+  function brokerUrl() {
+    // Testserver nur bei lokal geöffneter Seite per ?broker= überschreibbar
+    const q = new URLSearchParams(location.search).get("broker");
+    if (q && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return q;
+    return CFG.room.broker;
+  }
+
+  function setRoomUrl(code) {
+    const u = new URL(location.href);
+    if (code) u.searchParams.set("raum", code); else u.searchParams.delete("raum");
+    history.replaceState(null, "", u.pathname + u.search + location.hash);
+  }
+
+  function enterRoom(code) {
+    if (room) leaveRoom(true);
+    if (!window.mqtt) { toast("Die Live-Verbindung konnte nicht geladen werden"); return; }
+    if (!me.name) me.name = "Spieler";
+    localMarkers = markers;
+    markers = [];
+    published.clear();
+    clearDrawings();
+    room = R.join({
+      broker: brokerUrl(), namespace: CFG.room.namespace, code, me,
+      onObject: onRemoteObject, onPresence: renderPeople, onStatus: renderRoomStatus,
+    });
+    store.set(KEYS.lastRoom, code);
+    setRoomUrl(code);
+    document.body.classList.add("has-room");
+    $("#room-off").hidden = true;
+    $("#room-on").hidden = false;
+    $("#room-code").textContent = code;
+    $("#room-badge").hidden = false;
+    $("#mine-title").textContent = "Marker im Raum";
+    $("#mine-help").textContent = "Rechtsklick auf die Karte (am Handy lange drücken) setzt einen Marker. Alle im Raum sehen und bearbeiten ihn sofort.";
+    renderMarkers();
+    renderRoomStatus("connecting");
+  }
+
+  function leaveRoom(silent) {
+    if (!room) return;
+    room.leave();
+    room = null;
+    markers = localMarkers;
+    published.clear();
+    clearDrawings();
+    loadLocalDrawings();
+    setRoomUrl(null);
+    document.body.classList.remove("has-room");
+    $("#room-off").hidden = false;
+    $("#room-on").hidden = true;
+    $("#room-badge").hidden = true;
+    $("#mine-title").textContent = "Eigene Marker";
+    $("#mine-help").textContent = "Rechtsklick auf die Karte (am Handy lange drücken) setzt einen Marker. Ohne Raum wird nur in diesem Browser gespeichert.";
+    renderMarkers();
+    if (!silent) toast("Raum verlassen");
+  }
+
+  function renderRoomStatus(st) {
+    const el = $("#room-status"), badge = $("#room-badge");
+    const text = { online: "verbunden", connecting: "verbinde …", offline: "keine Verbindung, versuche erneut …", error: "keine Verbindung, versuche erneut …" }[st] || st;
+    el.textContent = text;
+    el.className = "room-status " + (st === "online" ? "ok" : st === "connecting" ? "" : "bad");
+    badge.classList.toggle("ok", st === "online");
+    badge.classList.toggle("bad", st === "offline" || st === "error");
+    badge.dataset.status = text;
+    renderBadge();
+  }
+  let people = [];
+  function renderPeople(list) {
+    people = list;
+    $("#room-people").innerHTML = list
+      .sort((a, b) => (b.self - a.self) || a.name.localeCompare(b.name))
+      .map((p) => `<li class="${p.self ? "self" : ""}" style="--c:${esc(p.color)}">${esc(p.name)}${p.self ? " (du)" : ""}</li>`).join("");
+    renderBadge();
+  }
+  function renderBadge() {
+    if (!room) return;
+    const n = people.length || 1;
+    $("#room-badge-text").innerHTML = `<b>${esc(room.code)}</b> ${n} online`;
+    $("#room-badge").title = `Raum ${room.code}, ${$("#room-badge").dataset.status || ""}`;
+  }
+
+  function onRemoteObject(id, obj) {
+    if (obj && obj.k === "marker") {
+      published.set(id, JSON.stringify(obj.m));
+      const cur = markers.findIndex((m) => m.id === id);
+      if (cur >= 0) markers[cur] = obj.m; else markers.push(obj.m);
+      renderMarkers();
+    } else if (obj && obj.k === "draw") {
+      if (drawing && drawing.id === id) return;     // eigene laufende Zeichnung nicht überschreiben
+      upsertDrawing(obj);
+    } else if (!obj) {
+      if (published.has(id) || markers.some((m) => m.id === id)) {
+        published.delete(id);
+        markers = markers.filter((m) => m.id !== id);
+        renderMarkers();
+      }
+      removeDrawingLayer(id);
+    }
+  }
+
+  // Marker im Raum: Änderungen ermitteln und senden
+  function syncMarkers() {
+    if (!room) return false;
+    const ids = new Set();
+    markers.forEach((m) => {
+      ids.add(m.id);
+      const clean = { ...m };
+      delete clean._ll;
+      if (!clean.by) { clean.by = me.id; clean.byName = me.name; }
+      const json = JSON.stringify(clean);
+      if (published.get(m.id) !== json) {
+        published.set(m.id, json);
+        room.publish(m.id, { k: "marker", m: clean });
+      }
+    });
+    for (const id of [...published.keys()]) {
+      if (!ids.has(id)) { published.delete(id); room.remove(id); }
+    }
+    return true;
+  }
+
+  function initRoom() {
+    const nameIn = $("#start-name"), codeIn = $("#start-code"), err = $("#start-error");
+    const dlg = $("#start-dialog");
+    nameIn.value = me.name;
+    const setName = () => {
+      const n = nameIn.value.trim().slice(0, 20);
+      if (!n) { err.textContent = "Bitte gib einen Namen ein, damit die anderen sehen, wer zeichnet."; err.hidden = false; nameIn.focus(); return false; }
+      me.name = n; store.set(KEYS.name, n); err.hidden = true;
+      return true;
+    };
+    const urlCode = R.normalizeCode(new URLSearchParams(location.search).get("raum"));
+    const last = store.get(KEYS.lastRoom, null);
+    if (last && last !== urlCode) {
+      const b = $("#start-rejoin");
+      b.hidden = false;
+      b.textContent = `Zurück in Raum ${last}`;
+      b.addEventListener("click", () => { if (setName()) { dlg.close(); enterRoom(last); } });
+    }
+    if (urlCode) codeIn.value = urlCode;
+    $("#start-create").addEventListener("click", () => { if (setName()) { dlg.close(); enterRoom(R.newCode()); } });
+    const joinFromDialog = () => {
+      const c = R.normalizeCode(codeIn.value);
+      if (!c) { err.textContent = "Der Code hat 4 Zeichen, zum Beispiel K7QD."; err.hidden = false; codeIn.focus(); return; }
+      if (setName()) { dlg.close(); enterRoom(c); }
+    };
+    $("#start-join").addEventListener("click", joinFromDialog);
+    codeIn.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); joinFromDialog(); } });
+    nameIn.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); urlCode ? joinFromDialog() : $("#start-create").click(); } });
+    $("#start-skip").addEventListener("click", () => dlg.close());
+    dlg.addEventListener("cancel", () => {});
+
+    // Seitenleiste
+    $("#room-create").addEventListener("click", () => openStart());
+    $("#room-join").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const c = R.normalizeCode($("#room-code-input").value);
+      if (!c) { toast("Der Code hat 4 Zeichen, zum Beispiel K7QD"); return; }
+      if (!me.name) { codeIn.value = c; openStart(); return; }
+      enterRoom(c);
+      closePanelMobile();
+    });
+    $("#room-leave").addEventListener("click", () => leaveRoom());
+    $("#room-copy").addEventListener("click", () => {
+      const u = new URL(location.href);
+      u.hash = "";
+      u.searchParams.set("raum", room.code);
+      u.searchParams.delete("broker");
+      const text = `Komm in meinen Nasdara-Raum ${room.code}: ${u.toString()}`;
+      const done = () => toast("Einladung kopiert");
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => toast(text));
+      else toast(text);
+    });
+    $("#room-badge").addEventListener("click", () => {
+      $("#panel").classList.add("open");
+      $("#room").scrollIntoView({ block: "nearest" });
+    });
+
+    function openStart() {
+      err.hidden = true;
+      dlg.showModal();
+      (me.name ? (codeIn.value ? codeIn : $("#start-create")) : nameIn).focus();
+    }
+
+    loadLocalDrawings();
+    if (urlCode && me.name) enterRoom(urlCode);
+    else openStart();
+  }
+
+  // ---------- Zeichnen ----------
+  const drawGroup = L.layerGroup();
+  const drawLayers = new Map();          // id -> { obj, layer }
+  let drawRenderer = null;
+  let shape = store.get(KEYS.shape, "pen");
+  let drawing = null;                    // laufende eigene Zeichnung
+  let lastSent = 0, sendTimer = null;
+
+  function loadLocalDrawings() {
+    store.get(KEYS.drawings, []).forEach(upsertDrawing);
+  }
+  function saveLocalDrawings() {
+    if (room) return;
+    store.set(KEYS.drawings, [...drawLayers.values()].map((d) => d.obj));
+  }
+  function clearDrawings() {
+    drawGroup.clearLayers();
+    drawLayers.clear();
+  }
+
+  function shapeLayer(obj) {
+    const style = { renderer: drawRenderer, color: obj.c, weight: obj.w || 4, opacity: 0.95, lineCap: "round", lineJoin: "round", interactive: true };
+    const ll = (p) => [p[1], p[0]];
+    if (obj.s === "circle" && obj.p.length) {
+      return L.circle(ll(obj.p[0]), Object.assign({ radius: Math.max(1, obj.r || 1), fillColor: obj.c, fillOpacity: 0.14 }, style));
+    }
+    if (obj.s === "arrow" && obj.p.length >= 2) {
+      const [a, b] = [obj.p[0], obj.p[obj.p.length - 1]];
+      const dx = b[0] - a[0], dz = b[1] - a[1], len = Math.hypot(dx, dz) || 1;
+      const head = Math.min(len * 0.35, Math.max(len * 0.18, 25));
+      const ang = Math.atan2(dz, dx);
+      const wing = (s) => [b[0] - head * Math.cos(ang + s * 0.45), b[1] - head * Math.sin(ang + s * 0.45)];
+      return L.featureGroup([
+        L.polyline([ll(a), ll(b)], style),
+        L.polyline([ll(wing(1)), ll(b), ll(wing(-1))], style),
+      ]);
+    }
+    return L.polyline(obj.p.map(ll), Object.assign({ smoothFactor: 0.6 }, style));
+  }
+
+  function upsertDrawing(obj) {
+    if (!obj || !obj.id || !Array.isArray(obj.p)) return;
+    removeDrawingLayer(obj.id);
+    const layer = shapeLayer(obj);
+    layer.bindPopup(() => drawPopup(obj.id), { maxWidth: 260, className: "draw-pop" });
+    drawGroup.addLayer(layer);
+    drawLayers.set(obj.id, { obj, layer });
+  }
+  function removeDrawingLayer(id) {
+    const d = drawLayers.get(id);
+    if (d) { drawGroup.removeLayer(d.layer); drawLayers.delete(id); }
+  }
+
+  function drawPopup(id) {
+    const d = drawLayers.get(id);
+    if (!d) return "";
+    const o = d.obj;
+    const mine = o.by === me.id;
+    const label = { pen: "Freihand-Zeichnung", arrow: "Pfeil", circle: "Kreis" }[o.s] || "Zeichnung";
+    const ago = o.t ? Math.max(0, Math.round((Date.now() - o.t) / 60000)) : null;
+    const when = ago == null ? "" : ago < 1 ? ", gerade eben" : ago < 60 ? `, vor ${ago} Min.` : `, vor ${Math.round(ago / 60)} Std.`;
+    const extra = o.s === "circle" ? `<dl class="pop-meta"><dt>Radius</dt><dd>${num(o.r)} m</dd></dl>` :
+      o.s === "arrow" ? `<dl class="pop-meta"><dt>Länge</dt><dd>${num(Math.hypot(o.p[1][0] - o.p[0][0], o.p[1][1] - o.p[0][1]))} m</dd></dl>` : "";
+    return `<div class="pop-title"><span class="swatch" style="--c:${esc(o.c)}"></span><span>${label}</span></div>` +
+      `<div class="pop-sub">von ${esc(mine ? "dir" : o.n || "unbekannt")}${when}</div>` + extra +
+      (mine ? `<div class="pop-actions"><button type="button" class="btn danger" data-act="del-draw" data-id="${esc(id)}">Löschen</button></div>` : "");
+  }
+
+  function persistDrawing(obj, final) {
+    if (room) {
+      const now = Date.now();
+      clearTimeout(sendTimer);
+      if (final || now - lastSent > 120) { lastSent = now; room.publish(obj.id, obj); }
+      else sendTimer = setTimeout(() => { lastSent = Date.now(); room.publish(obj.id, obj); }, 120 - (now - lastSent));
+    } else if (final) {
+      saveLocalDrawings();
+    }
+  }
+
+  function deleteDrawings(ids) {
+    ids.forEach((id) => {
+      removeDrawingLayer(id);
+      if (room) room.remove(id);
+    });
+    saveLocalDrawings();
+  }
+
+  const round1 = (v) => Math.round(v * 10) / 10;
+  function simplifyPts(pts, eps) {
+    if (pts.length < 3) return pts;
+    const keep = new Array(pts.length).fill(false);
+    keep[0] = keep[pts.length - 1] = true;
+    const stack = [[0, pts.length - 1]];
+    while (stack.length) {
+      const [i, j] = stack.pop();
+      if (j <= i + 1) continue;
+      const [x1, z1] = pts[i], [x2, z2] = pts[j];
+      const dx = x2 - x1, dz = z2 - z1, n = Math.hypot(dx, dz) || 1e-9;
+      let best = -1, bi = -1;
+      for (let k = i + 1; k < j; k++) {
+        const d = Math.abs(dx * (pts[k][1] - z1) - dz * (pts[k][0] - x1)) / n;
+        if (d > best) { best = d; bi = k; }
+      }
+      if (best > eps) { keep[bi] = true; stack.push([i, bi], [bi, j]); }
+    }
+    return pts.filter((_, k) => keep[k]);
+  }
+
+  function initDraw() {
+    drawRenderer = L.canvas({ pane: "drawPane", padding: 0.3, tolerance: 6 });
+    drawGroup.addTo(map);
+
+    $("#draw-colors").innerHTML = CFG.drawColors.map((c) =>
+      `<button type="button" role="radio" data-color="${c}" style="--c:${c}" aria-label="Farbe ${c}" aria-checked="${c === me.color}"></button>`).join("");
+    const syncBar = () => {
+      document.querySelectorAll("[data-shape]").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.shape === shape)));
+      document.querySelectorAll("[data-color]").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.color === me.color)));
+    };
+    syncBar();
+    $("#drawbar").addEventListener("click", (e) => {
+      const s = e.target.closest("[data-shape]");
+      if (s) { shape = s.dataset.shape; store.set(KEYS.shape, shape); syncBar(); }
+      const c = e.target.closest("[data-color]");
+      if (c) { me.color = c.dataset.color; store.set(KEYS.color, me.color); syncBar(); if (room) room.rename(me.name, me.color); }
+    });
+    $("#tool-draw").addEventListener("click", () => setMode("draw"));
+    $("#draw-done").addEventListener("click", () => setMode(null));
+    $("#draw-clear").addEventListener("click", () => {
+      const mine = [...drawLayers.values()].filter((d) => d.obj.by === me.id).map((d) => d.obj.id);
+      if (!mine.length) { toast("Du hast noch nichts gezeichnet"); return; }
+      if (!confirm(`Alle ${mine.length} Zeichnungen von dir löschen? Die Zeichnungen der anderen bleiben.`)) return;
+      deleteDrawings(mine);
+      toast(mine.length === 1 ? "Zeichnung gelöscht" : `${mine.length} Zeichnungen gelöscht`);
+    });
+
+    const el = map.getContainer();
+    const toLL = (e) => map.mouseEventToLatLng(e);
+    const inMap = (ll) => ll.lng >= 0 && ll.lat >= 0 && ll.lng <= W && ll.lat <= W;
+    el.addEventListener("pointerdown", (e) => {
+      if (mode !== "draw" || e.button > 0) return;
+      if (e.target.closest(".leaflet-control, .leaflet-popup, .drawbar, .tools, .styleswitch, .readout, .room-badge")) return;
+      const ll = toLL(e);
+      if (!inMap(ll)) return;
+      e.preventDefault();
+      el.setPointerCapture(e.pointerId);
+      const now = Date.now();
+      drawing = {
+        id: "d" + now.toString(36) + Math.random().toString(36).slice(2, 6),
+        k: "draw", s: shape, c: me.color, w: 4, by: me.id, n: me.name, t: now,
+        p: [[round1(ll.lng), round1(ll.lat)]], r: 0,
+        _px: [e.clientX, e.clientY],
+      };
+      if (shape !== "pen") drawing.p.push(drawing.p[0]);
+      upsertDrawing(drawing);
+    });
+    el.addEventListener("pointermove", (e) => {
+      if (!drawing) return;
+      const ll = toLL(e);
+      const pt = [round1(Math.min(W, Math.max(0, ll.lng))), round1(Math.min(W, Math.max(0, ll.lat)))];
+      if (drawing.s === "pen") {
+        if (Math.hypot(e.clientX - drawing._px[0], e.clientY - drawing._px[1]) < 3) return;
+        drawing._px = [e.clientX, e.clientY];
+        drawing.p.push(pt);
+      } else if (drawing.s === "arrow") {
+        drawing.p[1] = pt;
+      } else {
+        drawing.r = Math.round(Math.hypot(pt[0] - drawing.p[0][0], pt[1] - drawing.p[0][1]));
+      }
+      upsertDrawing(drawing);
+      persistDrawing(clean(drawing), false);
+    });
+    const finish = () => {
+      if (!drawing) return;
+      const d = drawing;
+      drawing = null;
+      const tooSmall = d.s === "pen" ? d.p.length < 2 : d.s === "arrow" ? Math.hypot(d.p[1][0] - d.p[0][0], d.p[1][1] - d.p[0][1]) < 5 : d.r < 5;
+      if (tooSmall) { removeDrawingLayer(d.id); if (room) room.remove(d.id); return; }
+      if (d.s === "pen") {
+        const metersPerPx = 1 / Math.pow(2, map.getZoom());
+        d.p = simplifyPts(d.p, Math.max(0.3, metersPerPx * 1.2));
+      }
+      const obj = clean(d);
+      upsertDrawing(obj);
+      persistDrawing(obj, true);
+    };
+    el.addEventListener("pointerup", finish);
+    el.addEventListener("pointercancel", finish);
+  }
+  const clean = (d) => { const o = { ...d }; delete o._px; return o; };
+
+  function setDrawInteractions(on) {
+    const fns = [map.dragging, map.touchZoom, map.doubleClickZoom, map.boxZoom];
+    fns.forEach((h) => h && (on ? h.disable() : h.enable()));
+    if (map.tapHold) on ? map.tapHold.disable() : map.tapHold.enable();
+    map.getContainer().classList.toggle("drawing", on);
+    $("#drawbar").hidden = !on;
+    $("#tool-draw").setAttribute("aria-pressed", String(on));
   }
 
   // ---------- Mobile Seitenleiste ----------

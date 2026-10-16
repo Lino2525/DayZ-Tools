@@ -13,6 +13,13 @@ window.MAP_CONFIG = {
   tiersImage: "data/tiers.png",
   objectsUrl: "data/objects.json",
   height3dUrl: "data/height16.png",
+
+  // Live-Räume: öffentlicher MQTT-Server über WebSocket. Alle müssen denselben Server nutzen.
+  room: {
+    broker: "wss://broker.emqx.io:8084/mqtt",
+    namespace: "lino2525-dayztools/nasdara/v1",
+  },
+  drawColors: ["#E5322D", "#F29B1D", "#F5E04A", "#3DB54A", "#2F8FE0", "#9B4FD8", "#FFFFFF", "#1E1E1E"],
   // Optional: eigenes Kartenbild (z. B. Satellitenbild), das die gesamte Karte abdeckt.
   // Pfad eintragen, dann erscheint unter "Grundkarte" ein Schalter dafür.
   overlayImage: null,
