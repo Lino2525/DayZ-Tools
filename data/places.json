@@ -1,0 +1,238 @@
+{
+ "_hinweis": "Ortsnamen für die Papierkarte. x/z = Spielkoordinaten in Metern (wie GPS). type: city, town, village, place, poi, region. approx=true bedeutet: Lage ungefähr, bitte im Spiel prüfen und korrigieren.",
+ "places": [
+  {
+   "name": "Abad",
+   "x": 6925,
+   "z": 4705,
+   "type": "place",
+   "size": 226,
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Aman",
+   "x": 8701,
+   "z": 4406,
+   "type": "place",
+   "size": 0,
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Anar",
+   "x": 5264,
+   "z": 8163,
+   "type": "place",
+   "size": 105,
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Bagh",
+   "x": 4595,
+   "z": 5668,
+   "type": "place",
+   "size": 72,
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Bala",
+   "x": 4375,
+   "z": 7505,
+   "type": "place",
+   "size": 72,
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Dara",
+   "x": 10809,
+   "z": 13988,
+   "type": "place",
+   "size": 118,
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Kalay",
+   "x": 9520,
+   "z": 8923,
+   "type": "place",
+   "size": 46,
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Kariz",
+   "x": 11277,
+   "z": 8594,
+   "type": "place",
+   "size": 32,
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Kati",
+   "x": 5154,
+   "z": 11499,
+   "type": "place",
+   "size": 12,
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Khwakay",
+   "x": 5547,
+   "z": 7245,
+   "type": "place",
+   "size": 17,
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Kohna",
+   "x": 7785,
+   "z": 8577,
+   "type": "place",
+   "size": 336,
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Manda",
+   "x": 4596,
+   "z": 10131,
+   "type": "place",
+   "size": 211,
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Nasdara",
+   "x": 9903,
+   "z": 4325,
+   "type": "place",
+   "size": 751,
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Payan",
+   "x": 9284,
+   "z": 7556,
+   "type": "place",
+   "size": 104,
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Pesh",
+   "x": 3100,
+   "z": 10737,
+   "type": "place",
+   "size": 18,
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Sabzabad",
+   "x": 6780,
+   "z": 7463,
+   "type": "place",
+   "size": 156,
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Shinkalay",
+   "x": 8321,
+   "z": 10166,
+   "type": "place",
+   "size": 72,
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Staudamm",
+   "x": 4025,
+   "z": 14105,
+   "type": "poi",
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Tunnel",
+   "x": 5830,
+   "z": 5944,
+   "type": "poi",
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "OKB",
+   "x": 7543,
+   "z": 10344,
+   "type": "poi",
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Beton",
+   "x": 9600,
+   "z": 6419,
+   "type": "poi",
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Zenit",
+   "x": 6460,
+   "z": 10209,
+   "type": "poi",
+   "source": "Konvoi-Gruppe in cfgeventspawns.xml",
+   "approx": true
+  },
+  {
+   "name": "Palast der Monarchie",
+   "x": 10142,
+   "z": 8214,
+   "type": "poi",
+   "source": "Musikzonen in DayZ-Script-Diff (Bohemia)",
+   "approx": false
+  },
+  {
+   "name": "Ölraffinerien",
+   "x": 10694,
+   "z": 6016,
+   "type": "poi",
+   "source": "Musikzonen in DayZ-Script-Diff (Bohemia)",
+   "approx": false
+  },
+  {
+   "name": "Gescheitertes Projekt",
+   "x": 7042,
+   "z": 10195,
+   "type": "poi",
+   "source": "Musikzonen in DayZ-Script-Diff (Bohemia)",
+   "approx": false
+  },
+  {
+   "name": "Grenzübergang",
+   "x": 3843,
+   "z": 5137,
+   "type": "poi",
+   "source": "Musikzonen in DayZ-Script-Diff (Bohemia)",
+   "approx": false
+  },
+  {
+   "name": "Dasht-e Sarman",
+   "x": 14500,
+   "z": 8000,
+   "type": "region",
+   "source": "Dev-Blog / Musikzone Wüste",
+   "approx": true
+  }
+ ]
+}

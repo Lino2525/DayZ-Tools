@@ -242,7 +242,8 @@ a:hover { text-decoration-color: var(--paper); }
 }
 .readout-k { color: var(--paper-dim); font-size: 13px; font-weight: 500; }
 .readout-k + span { min-width: 5ch; text-align: right; }
-.readout-k:nth-of-type(2) { margin-left: 6px; }
+.readout-k:nth-of-type(n+2) { margin-left: 6px; }
+#rh { min-width: 4.5ch; }
 
 .tools {
   position: absolute;
@@ -416,4 +417,89 @@ a:hover { text-decoration-color: var(--paper); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before { transition: none !important; animation: none !important; }
+}
+
+/* ---------- Kartenwechsel ---------- */
+.styleswitch {
+  position: absolute;
+  left: 12px;
+  bottom: 40px;
+  z-index: 1000;
+  display: flex;
+  gap: 8px;
+}
+.style-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  width: 92px;
+  padding: 0;
+  border: 2px solid var(--olive-800);
+  border-radius: 6px;
+  background: var(--olive-800);
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,.3);
+  font-weight: 600;
+  font-size: 13px;
+}
+.style-btn > span:last-child { padding: 3px 6px 4px; text-align: center; }
+.style-thumb { height: 58px; background-size: 300%; background-position: 45% 45%; }
+.thumb-paper { background-image: url(../data/paper/1/0/0.webp); background-size: 210%; background-position: 70% 75%; }
+.thumb-loot { background-image: url(../data/nasdara-base.png); background-size: 240%; background-position: 50% 50%; }
+.style-btn[aria-checked="true"] { border-color: #E3D3A8; background: #E3D3A8; color: var(--ink); }
+.style-btn:hover:not([aria-checked="true"]) { border-color: var(--olive-600); }
+
+/* Legende Grundkarte */
+.legend[data-for] { display: none; }
+body[data-style="paper"] .legend[data-for="paper"],
+body[data-style="loot"] .legend[data-for="loot"] { display: grid; }
+.legend-road { width: 22px; height: 0; border-top: 2px solid #9A6A3C; justify-self: center; }
+.legend-road.wide { border-top: 3.5px solid #7E4F25; }
+.legend-road.path { border-top: 1.5px dashed #A88460; }
+.legend li .legend-road { width: 14px; }
+.legend-contour { width: 14px; height: 0; border-top: 1px solid #7A5430; }
+.legend-building { width: 10px; height: 10px; background: #4E4236; justify-self: center; transform: rotate(18deg); }
+.sym.legend-name { background: none; border: 0; box-shadow: none; color: var(--paper); font: 700 12px var(--font); }
+
+/* Ortsnamen und Höhenpunkte */
+.place-label {
+  background: none;
+  border: 0;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+.place-label span {
+  display: inline-block;
+  transform: translate(-50%, -50%);
+  font-family: var(--font);
+  font-weight: 700;
+  color: #2E2416;
+  letter-spacing: .04em;
+  text-shadow: 0 0 2px #F2EBD9, 0 0 3px #F2EBD9, 0 0 5px rgba(242,235,217,.9);
+  cursor: pointer;
+  line-height: 1;
+}
+.place-label.t-big span { font-size: 17px; text-transform: uppercase; letter-spacing: .08em; }
+.place-label.t-mid span { font-size: 14px; text-transform: uppercase; letter-spacing: .06em; }
+.place-label.t-small span { font-size: 13px; }
+.place-label.t-poi span { font-size: 12.5px; font-weight: 600; font-style: italic; color: #4A3520; }
+.place-label.t-region span { font-size: 20px; font-weight: 500; letter-spacing: .4em; text-transform: uppercase; color: rgba(90, 64, 36, .55); text-shadow: none; }
+.map-far .place-label.t-small, .map-far .place-label.t-poi { display: none; }
+.map-veryfar .place-label.t-mid { display: none; }
+.peak-label span {
+  display: inline-block;
+  transform: translate(-4px, -50%);
+  font: 600 11px var(--font);
+  color: #5A4026;
+  text-shadow: 0 0 2px #F2EBD9, 0 0 3px #F2EBD9;
+  white-space: nowrap;
+}
+.peak-label span::before { content: "▲"; font-size: 8px; margin-right: 3px; vertical-align: 1px; }
+
+@media (max-width: 860px) {
+  .styleswitch { left: 10px; bottom: 34px; gap: 6px; }
+  .style-btn { width: 74px; font-size: 12px; }
+  .style-thumb { height: 44px; }
 }

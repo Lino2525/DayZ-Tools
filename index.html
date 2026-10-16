@@ -56,18 +56,26 @@
         </div>
       </details>
 
-      <details class="group">
+      <details class="group" id="basemap-group" open>
         <summary><span class="group-title">Grundkarte</span></summary>
+        <label class="row"><input type="checkbox" id="opt-names" checked><span class="sym legend-name" aria-hidden="true">Aa</span><span class="row-label">Ortsnamen</span></label>
+        <label class="row"><input type="checkbox" id="opt-roads" checked><span class="legend-road" aria-hidden="true"></span><span class="row-label">Wege und Pisten</span></label>
+        <label class="row"><input type="checkbox" id="opt-buildings" checked><span class="legend-building" aria-hidden="true"></span><span class="row-label">Gebäude (ab Nahansicht)</span></label>
         <label class="row"><input type="checkbox" id="opt-grid" checked><span class="swatch grid-swatch"></span><span class="row-label">Raster (1 km)</span></label>
         <label class="row" id="overlay-row" hidden><input type="checkbox" id="opt-overlay"><span class="swatch"></span><span class="row-label">Eigenes Kartenbild</span></label>
-        <ul class="legend">
+        <ul class="legend" data-for="paper">
+          <li><span class="legend-road wide"></span>Fahrweg</li>
+          <li><span class="legend-road"></span>Piste</li>
+          <li><span class="legend-road path"></span>Pfad</li>
+          <li><span class="legend-contour"></span>Höhenlinie alle 20 m, kräftig alle 100 m</li>
+        </ul>
+        <ul class="legend" data-for="loot">
           <li><span class="swatch" style="--c:#E7DBC1"></span>Tier 1, Randgebiete mit einfachem Loot</li>
           <li><span class="swatch" style="--c:#DDC9A0"></span>Tier 2</li>
           <li><span class="swatch" style="--c:#CCAC78"></span>Tier 3, bessere Ausrüstung</li>
           <li><span class="swatch" style="--c:#B7A571"></span>Grünlicher Ton: Militärgebiet</li>
-          <li><span class="swatch" style="--c:#5C4834"></span>Gebäude</li>
         </ul>
-        <p class="help">Ortsnamen und Gelände sind in den offiziellen Daten nicht enthalten. Siedlungen erkennst du an den Gebäudepunkten.</p>
+        <p class="help">Die Papierkarte ist aus den offenen Spieldaten berechnet: Gelände aus rund 200.000 Objekthöhen, Wege aus den Wegstücken. Asphaltstraßen und manche Ortsnamen fehlen noch. Namen mit ≈ sind ungefähr platziert.</p>
       </details>
 
       <footer class="credits">
@@ -82,7 +90,17 @@
       <button class="readout" id="readout" type="button" title="Klicken oder Strg+C kopiert die Koordinate unter dem Mauszeiger">
         <span class="readout-k">X</span><span id="rx">00000</span>
         <span class="readout-k">Y</span><span id="ry">00000</span>
+        <span class="readout-k" id="rh-k">Höhe</span><span id="rh">–</span>
       </button>
+
+      <div class="styleswitch" role="radiogroup" aria-label="Kartenart">
+        <button type="button" role="radio" data-style="paper" class="style-btn">
+          <span class="style-thumb thumb-paper" aria-hidden="true"></span><span>Papierkarte</span>
+        </button>
+        <button type="button" role="radio" data-style="loot" class="style-btn">
+          <span class="style-thumb thumb-loot" aria-hidden="true"></span><span>Loot-Zonen</span>
+        </button>
+      </div>
 
       <div class="tools" role="toolbar" aria-label="Werkzeuge">
         <button class="tool panel-open" id="panel-open" type="button" aria-label="Ebenen öffnen">

@@ -10,6 +10,8 @@
     overlay: "nasdara.overlay.v1",
     open: "nasdara.open.v1",
     markers: "nasdara.markers.v1",
+    style: "nasdara.style.v1",
+    base: "nasdara.base.v1",
   };
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -24,7 +26,7 @@
   const defs = {};
   CFG.groups.forEach((g) => g.layers.forEach((l) => { l.group = g.id; defs[l.id] = l; }));
 
-  let data, W, map, bounds;
+  let data, W, map, bounds, paper = null, places = [], heightGrid = null;
   let tierMin = store.get(KEYS.tier, 0);
   const savedLayers = store.get(KEYS.layers, {});
   const active = {};
@@ -60,9 +62,10 @@
   }
 
   // ---------- Daten laden ----------
-  fetch(CFG.dataUrl)
-    .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then((d) => { data = d; init(); })
+  const getJson = (u, optional) => fetch(u).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .catch((e) => { if (optional) return null; throw e; });
+  Promise.all([getJson(CFG.dataUrl), getJson(CFG.paperDataUrl, true), getJson(CFG.placesUrl, true)])
+    .then(([d, p, pl]) => { data = d; paper = p; places = (pl && pl.places) || []; init(); })
     .catch(() => {
       document.body.insertAdjacentHTML("beforeend",
         '<div class="toast" style="top:40%;bottom:auto">Die Kartendaten konnten nicht geladen werden. Öffne die Seite über einen Webserver (z. B. GitHub Pages), nicht direkt als Datei.</div>');
@@ -87,10 +90,10 @@
     map.createPane("gridPane").style.zIndex = 405;
     map.createPane("zonePane").style.zIndex = 410;
     map.createPane("dotPane").style.zIndex = 420;
+    map.createPane("labelPane").style.zIndex = 615;
     map.createPane("measurePane").style.zIndex = 640;
     map.createPane("minePane").style.zIndex = 660;
 
-    L.imageOverlay(CFG.baseImage, bounds, { className: "base-image", interactive: false }).addTo(map);
     if (CFG.overlayImage) {
       $("#overlay-row").hidden = false;
       overlayLayer = L.imageOverlay(CFG.overlayImage, bounds, { opacity: 0.92, interactive: false });
@@ -118,6 +121,7 @@
     L.control.scale({ position: "bottomleft", metric: true, imperial: false, maxWidth: 140 }).addTo(map);
 
     fitInitialView();
+    initBasemaps();
     buildLayers();
     renderLegend();
     applyAll();
@@ -136,9 +140,178 @@
       if (m) map.setView([+m[3], +m[2]], +m[1]);
     });
     onZoom();
+    loadHeights();
 
     const c = data.meta.commit ? `, Stand ${esc(data.meta.commit)}` : "";
     $("#data-stamp").innerHTML = `Daten erzeugt am ${new Date(data.meta.generated).toLocaleDateString("de-DE")}${c}.`;
+  }
+
+
+  // ---------- Grundkarten ----------
+  let lootBase, paperBase, roadLayer, roadRenderer, buildingLayer, buildingRenderer, labelLayer, peakLayer;
+  let style = store.get(KEYS.style, "paper");
+  const baseOpts = Object.assign({ names: true, roads: true, buildings: true }, store.get(KEYS.base, {}));
+
+  // Kacheln der Papierkarte: Ebene 0 entspricht Leaflet-Zoom -6, Kachelzeile 0 liegt im Norden
+  const PaperTiles = L.TileLayer.extend({
+    getTileUrl(c) {
+      const t = c.z + 6;
+      return L.Util.template(this._url, { z: t, x: c.x, y: c.y + Math.pow(2, t) });
+    },
+  });
+
+  function initBasemaps() {
+    lootBase = L.imageOverlay(CFG.baseImage, bounds, { className: "base-image", interactive: false });
+    if (paper) {
+      paperBase = new PaperTiles(CFG.paperTiles, {
+        tileSize: paper.tiles.tileSize, minZoom: -10, maxZoom: 10, minNativeZoom: -6, maxNativeZoom: paper.tiles.maxZoom - 6,
+        bounds: bounds, noWrap: true, keepBuffer: 4, className: "paper-tiles",
+      });
+      roadRenderer = L.canvas({ pane: "gridPane", padding: 0.4 });
+      buildingRenderer = L.canvas({ pane: "gridPane", padding: 0.3 });
+      buildRoads();
+      buildBuildings();
+    } else {
+      style = "loot";
+      $(".styleswitch").hidden = true;
+    }
+    buildLabels();
+
+    const sw = $(".styleswitch");
+    sw.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-style]");
+      if (b) setStyle(b.dataset.style);
+    });
+    ["names", "roads", "buildings"].forEach((k) => {
+      const cb = $("#opt-" + k);
+      cb.checked = baseOpts[k];
+      cb.addEventListener("change", () => { baseOpts[k] = cb.checked; store.set(KEYS.base, baseOpts); applyBase(); });
+    });
+    setStyle(style);
+  }
+
+  function setStyle(s) {
+    style = s;
+    store.set(KEYS.style, s);
+    document.body.dataset.style = s;
+    document.querySelectorAll(".style-btn").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.style === s)));
+    if (s === "paper" && paperBase) { lootBase.remove(); paperBase.addTo(map); paperBase.bringToBack(); }
+    else { if (paperBase) paperBase.remove(); lootBase.addTo(map); lootBase.bringToBack(); }
+    applyBase();
+  }
+
+  function applyBase() {
+    if (!map) return;
+    const z = map.getZoom();
+    toggle(labelLayer, baseOpts.names);
+    toggle(peakLayer, baseOpts.names && style === "paper" && z >= -3.5);
+    toggle(roadLayer, baseOpts.roads);
+    toggle(buildingLayer, baseOpts.buildings && style === "paper" && z >= -2.25);
+    styleRoads();
+  }
+  function toggle(layer, on) {
+    if (!layer) return;
+    if (on && !map.hasLayer(layer)) layer.addTo(map);
+    if (!on && map.hasLayer(layer)) layer.remove();
+  }
+
+  const ROAD = {
+    1: { color: "#7E4F25", w: 3.4 },
+    2: { color: "#93653A", w: 2.4 },
+    3: { color: "#A88460", w: 1.4, dash: true },
+  };
+  function buildRoads() {
+    roadLayer = L.layerGroup();
+    paper.roads.forEach(([cls, pts]) => {
+      const st = ROAD[cls] || ROAD[3];
+      const line = L.polyline(pts.map(([x, z]) => [z, x]), {
+        renderer: roadRenderer, color: st.color, weight: st.w, opacity: 0.9, lineCap: "round", lineJoin: "round",
+        interactive: false, smoothFactor: 1.2,
+      });
+      line._cls = cls;
+      roadLayer.addLayer(line);
+    });
+  }
+  function styleRoads() {
+    if (!roadLayer || !map) return;
+    const z = map.getZoom();
+    const k = Math.max(0.35, Math.min(2.2, 0.55 + (z + 3) * 0.32));
+    const onLoot = style === "loot";
+    roadLayer.eachLayer((l) => {
+      const st = ROAD[l._cls] || ROAD[3];
+      if (l._cls === 3 && z < -3.5) { l.setStyle({ opacity: 0 }); return; }
+      l.setStyle({
+        weight: st.w * k,
+        opacity: onLoot ? 0.55 : 0.9,
+        dashArray: st.dash && z >= -1.5 ? `${4 * k} ${3 * k}` : null,
+      });
+    });
+  }
+
+  function buildBuildings() {
+    buildingLayer = L.layerGroup();
+    const s = 5;  // halbe Kantenlänge in Metern (ungefähre Gebäudegröße)
+    paper.buildings.forEach(([x, z, yaw]) => {
+      const r = (yaw * Math.PI) / 180, c = Math.cos(r), n = Math.sin(r);
+      const pts = [[-s, -s], [s, -s], [s, s], [-s, s]].map(([dx, dz]) => [z + (-dx * n + dz * c), x + (dx * c + dz * n)]);
+      buildingLayer.addLayer(L.polygon(pts, { renderer: buildingRenderer, stroke: false, fillColor: "#4E4236", fillOpacity: 0.85, interactive: false }));
+    });
+  }
+
+  function placeClass(p) {
+    if (p.type === "region") return "t-region";
+    if (p.type === "poi") return "t-poi";
+    if (p.type === "city" || (p.size || 0) >= 250) return "t-big";
+    if (p.type === "town" || (p.size || 0) >= 80) return "t-mid";
+    return "t-small";
+  }
+  function buildLabels() {
+    labelLayer = L.layerGroup();
+    places.forEach((p) => {
+      const text = (p.approx ? "≈ " : "") + p.name;
+      const m = L.marker([p.z, p.x], {
+        icon: L.divIcon({ className: "place-label " + placeClass(p), html: `<span>${esc(text)}</span>`, iconSize: [0, 0] }),
+        keyboard: false, pane: "labelPane",
+      });
+      m.bindPopup(() =>
+        `<div class="pop-title"><span>${esc(p.name)}</span></div>` +
+        `<div class="pop-sub">${p.approx ? "Lage ungefähr, bitte im Spiel prüfen" : "Lage aus den Spieldaten"}</div>` +
+        `<dl class="pop-meta"><dt>Quelle</dt><dd>${esc(p.source || "")}</dd><dt>Koordinate</dt><dd>${coordText(p.x, p.z)}</dd></dl>` +
+        `<div class="pop-actions"><button type="button" class="btn" data-act="copy" data-x="${p.x}" data-z="${p.z}">Koordinate kopieren</button>` +
+        `<button type="button" class="btn ghost" data-act="measure" data-x="${p.x}" data-z="${p.z}">Von hier messen</button></div>`,
+        { maxWidth: 280 });
+      labelLayer.addLayer(m);
+    });
+    peakLayer = L.layerGroup();
+    ((paper && paper.peaks) || []).slice(0, 80).forEach(([x, z, h]) => {
+      peakLayer.addLayer(L.marker([z, x], {
+        icon: L.divIcon({ className: "peak-label", html: `<span>${h}</span>`, iconSize: [0, 0] }),
+        interactive: false, keyboard: false, pane: "labelPane",
+      }));
+    });
+  }
+
+  // Höhenraster (64 m) für die Anzeige unter dem Mauszeiger
+  function loadHeights() {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const c = document.createElement("canvas");
+        c.width = img.width; c.height = img.height;
+        const ctx = c.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0);
+        heightGrid = { w: img.width, h: img.height, px: ctx.getImageData(0, 0, img.width, img.height).data };
+      } catch (e) { heightGrid = null; }
+    };
+    img.src = CFG.heightUrl;
+  }
+  function heightAt(x, z) {
+    if (!heightGrid || x < 0 || z < 0 || x >= W || z >= W) return null;
+    const { w, h, px } = heightGrid;
+    const col = Math.min(w - 1, Math.floor((x / W) * w));
+    const row = Math.min(h - 1, Math.floor(((W - z) / W) * h));
+    const i = (row * w + col) * 4;
+    return (px[i] * 256 + px[i + 1]) / 2;
   }
 
   function fitInitialView() {
@@ -232,6 +405,7 @@
     el.classList.toggle("map-veryfar", z < -4.75);
     el.classList.toggle("map-mid", z >= -3.5 && z < -1.5);
     el.classList.toggle("map-zoomed-in", z >= 1);
+    applyBase();
     const level = (z >= -5.06) + (z >= -3.64) + (z >= -2.06);
     if (gridLayer && map.hasLayer(gridLayer) && level !== gridLevel) { gridLevel = level; gridLayer.redraw(); }
     const r = dotRadius(z);
@@ -432,7 +606,13 @@
   let cursor = null;
   function initReadout() {
     const rx = $("#rx"), ry = $("#ry");
-    const show = (ll) => { rx.textContent = Math.round(ll.lng); ry.textContent = Math.round(ll.lat); };
+    const rh = $("#rh");
+    const show = (ll) => {
+      rx.textContent = Math.round(ll.lng);
+      ry.textContent = Math.round(ll.lat);
+      const h = heightAt(ll.lng, ll.lat);
+      rh.textContent = h == null ? "–" : `≈${Math.round(h / 5) * 5} m`;
+    };
     show(map.getCenter());
     map.on("mousemove", (e) => { cursor = e.latlng; show(e.latlng); });
     map.on("mouseout", () => { cursor = null; });

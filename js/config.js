@@ -4,6 +4,10 @@
 window.MAP_CONFIG = {
   dataUrl: "data/nasdara.json",
   baseImage: "data/nasdara-base.png",
+  paperDataUrl: "data/paper.json",
+  placesUrl: "data/places.json",
+  heightUrl: "data/height64.png",
+  paperTiles: "data/paper/{z}/{x}/{y}.webp",
   // Optional: eigenes Kartenbild (z. B. Satellitenbild), das die gesamte Karte abdeckt.
   // Pfad eintragen, dann erscheint unter "Grundkarte" ein Schalter dafür.
   overlayImage: null,
