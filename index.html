@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feldsanitäter Nasdara</title>
+<meta name="description" content="Hitzschlag und Krankheiten in DayZ Badlands erkennen und behandeln. Werte direkt aus den Spielskripten von DayZ 1.30.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%232b2720'/%3E%3Cpath d='M16 5c4 6 7 10 7 14a7 7 0 0 1-14 0c0-4 3-8 7-14z' fill='%23d2b07a'/%3E%3Crect x='14.5' y='13' width='3' height='10' fill='%232b2720'/%3E%3Crect x='11' y='16.5' width='10' height='3' fill='%232b2720'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<header class="kopf">
+  <div class="kopf-innen">
+    <p class="marke"><svg class="marke-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3c4.5 6.5 8 11 8 15.5a8 8 0 0 1-16 0C8 14 11.5 9.5 16 3z" fill="currentColor"/><rect x="14.4" y="12" width="3.2" height="11" fill="var(--grund)"/><rect x="10.5" y="15.9" width="11" height="3.2" fill="var(--grund)"/></svg>DayZ-Tools</p>
+    <h1>Feldsanitäter <span class="ort">Nasdara</span></h1>
+    <p class="lead">Was hast du, und wie wirst du es los? Gib ein, was dein Charakter zeigt. Die Seite erkennt die wahrscheinliche Ursache und sagt dir, was jetzt hilft. Alle Werte stammen direkt aus den Spielskripten von DayZ 1.30.</p>
+  </div>
+</header>
+
+<section class="hero" aria-labelledby="hero-titel">
+  <div class="hero-text">
+    <h2 id="hero-titel">Warum der Hitzschlag immer wiederkommt</h2>
+    <p>Der Hitzschlag ist ein versteckter Wert von 0 bis 1. Ab 0,6 erbrichst du. Fällt er knapp darunter, ist das Erbrechen vorbei, aber der Wert ist noch fast genauso hoch. Ein paar Minuten in der Sonne, und du bist wieder drüber.</p>
+    <p>Von allein sinkt er nur um 0,006 pro Minute, also <strong>mindestens 100 Minuten von Stufe 3 bis 0</strong>. Gesicht waschen senkt ihn um 0,175 auf einmal. Vier bis fünf Waschungen im 30-Sekunden-Takt bringen dich von Stufe 3 auf null.</p>
+    <a class="knopf" href="#pruefen">Zustand prüfen</a>
+  </div>
+  <figure class="skala" aria-label="Hitzschlag-Skala von 0 bis 1 mit vier Stufen">
+    <div class="skala-band">
+      <div class="seg s1" style="--von:0;--bis:.4"><span>Stufe 1</span></div>
+      <div class="seg s2" style="--von:.4;--bis:.6"><span>Stufe 2</span></div>
+      <div class="seg s3" style="--von:.6;--bis:.85"><span>Stufe 3</span></div>
+      <div class="seg s4" style="--von:.85;--bis:1"><span>4</span></div>
+      <div class="kante" style="--pos:.6"></div>
+    </div>
+    <div class="skala-achse"><span style="--pos:0">0</span><span style="--pos:.4">0,4</span><span style="--pos:.6">0,6</span><span style="--pos:.85">0,85</span><span style="--pos:1">1</span></div>
+    <figcaption>
+      <dl class="stufen-liste">
+        <div><dt>Stufe 1</dt><dd>Du schwitzt Wasser weg, sonst kaum etwas.</dd></div>
+        <div><dt>Stufe 2</dt><dd>Sicht verschwimmt, Ausdauer sinkt, Krankheitssymbol.</dd></div>
+        <div><dt>Stufe 3</dt><dd>Erbrechen, im Schnitt alle 7,5 bis 15 Minuten.</dd></div>
+        <div><dt>Stufe 4</dt><dd>Gesundheitsverlust und kurze Ohnmachten.</dd></div>
+      </dl>
+      <p class="kante-text">Bei 0,6 hört das Erbrechen auf. Gesund bist du erst bei 0.</p>
+    </figcaption>
+  </figure>
+</section>
+
+<nav class="leiste" aria-label="Bereiche">
+  <a href="#pruefen">Zustand prüfen</a>
+  <a href="#hitze">Hitzschlag</a>
+  <a href="#krankheiten">Krankheiten</a>
+  <a href="#fakten">Wichtige Fakten</a>
+</nav>
+
+<main>
+
+<section id="pruefen" class="abschnitt" aria-labelledby="pruefen-titel">
+  <h2 id="pruefen-titel">Zustand prüfen</h2>
+  <p class="einleitung">Fülle aus, was du gerade siehst. Was du nicht weißt, lässt du leer. Gespeichert wird nichts.</p>
+
+  <form id="formular" novalidate>
+    <fieldset class="gruppe">
+      <legend>Symbole rechts unten im Spiel</legend>
+
+      <div class="frage">
+        <p class="frage-titel" id="f-temp">Temperatur (Thermometer-Symbol)</p>
+        <div class="chips" role="radiogroup" aria-labelledby="f-temp">
+          <label class="chip"><input type="radio" name="temp" value="weiss"><span><i class="hud weiss" data-icon="temp"></i>Weiß</span></label>
+          <label class="chip"><input type="radio" name="temp" value="gelb"><span><i class="hud gelb" data-icon="temp"></i>Gelb</span></label>
+          <label class="chip"><input type="radio" name="temp" value="rot"><span><i class="hud rot" data-icon="temp"></i>Rot</span></label>
+          <label class="chip"><input type="radio" name="temp" value="rotblink"><span><i class="hud rot blink" data-icon="temp"></i>Rot blinkend</span></label>
+          <label class="chip"><input type="radio" name="temp" value="hellblau"><span><i class="hud hellblau" data-icon="temp"></i>Hellblau</span></label>
+          <label class="chip"><input type="radio" name="temp" value="blau"><span><i class="hud blau" data-icon="temp"></i>Blau</span></label>
+          <label class="chip"><input type="radio" name="temp" value="blaublink"><span><i class="hud blau blink" data-icon="temp"></i>Blau blinkend</span></label>
+        </div>
+      </div>
+
+      <div class="frage">
+        <p class="frage-titel" id="f-pfeil">Pfeile am Temperatursymbol</p>
+        <div class="chips" role="radiogroup" aria-labelledby="f-pfeil">
+          <label class="chip"><input type="radio" name="pfeil" value="hoch"><span>Nach oben (wird wärmer)</span></label>
+          <label class="chip"><input type="radio" name="pfeil" value="keine"><span>Keine</span></label>
+          <label class="chip"><input type="radio" name="pfeil" value="runter"><span>Nach unten (kühlt ab)</span></label>
+        </div>
+      </div>
+
+      <div class="frage">
+        <p class="frage-titel" id="f-wasser">Wasser (Tropfen-Symbol)</p>
+        <div class="chips" role="radiogroup" aria-labelledby="f-wasser">
+          <label class="chip"><input type="radio" name="wasser" value="voll"><span><i class="hud weiss" data-icon="tropfen" data-fuell="1"></i>Weiß, ganz voll</span></label>
+          <label class="chip"><input type="radio" name="wasser" value="mittel"><span><i class="hud weiss" data-icon="tropfen" data-fuell=".7"></i>Weiß, nicht ganz voll</span></label>
+          <label class="chip"><input type="radio" name="wasser" value="gelb"><span><i class="hud gelb" data-icon="tropfen" data-fuell=".45"></i>Gelb</span></label>
+          <label class="chip"><input type="radio" name="wasser" value="rot"><span><i class="hud rot" data-icon="tropfen" data-fuell=".2"></i>Rot</span></label>
+          <label class="chip"><input type="radio" name="wasser" value="rotblink"><span><i class="hud rot blink" data-icon="tropfen" data-fuell="0"></i>Rot blinkend</span></label>
+        </div>
+      </div>
+
+      <div class="frage">
+        <p class="frage-titel" id="f-essen">Essen</p>
+        <div class="chips" role="radiogroup" aria-labelledby="f-essen">
+          <label class="chip"><input type="radio" name="essen" value="weiss"><span><i class="hud weiss" data-icon="essen"></i>Weiß</span></label>
+          <label class="chip"><input type="radio" name="essen" value="gelb"><span><i class="hud gelb" data-icon="essen"></i>Gelb</span></label>
+          <label class="chip"><input type="radio" name="essen" value="rot"><span><i class="hud rot" data-icon="essen"></i>Rot oder blinkend</span></label>
+        </div>
+      </div>
+
+      <div class="frage">
+        <p class="frage-titel" id="f-gesund">Gesundheit</p>
+        <div class="chips" role="radiogroup" aria-labelledby="f-gesund">
+          <label class="chip"><input type="radio" name="gesund" value="weiss"><span><i class="hud weiss" data-icon="herz"></i>Weiß</span></label>
+          <label class="chip"><input type="radio" name="gesund" value="gelb"><span><i class="hud gelb" data-icon="herz"></i>Gelb</span></label>
+          <label class="chip"><input type="radio" name="gesund" value="rot"><span><i class="hud rot" data-icon="herz"></i>Rot oder blinkend</span></label>
+        </div>
+      </div>
+
+      <div class="frage">
+        <p class="frage-titel">Zusätzliche Symbole, die gerade zu sehen sind</p>
+        <div class="chips">
+          <label class="chip"><input type="checkbox" name="krank"><span><i class="hud weiss" data-icon="krank"></i>Krankheitssymbol</span></label>
+          <label class="chip"><input type="checkbox" name="krankwechsel"><span>Krankheitssymbol kommt und geht</span></label>
+          <label class="chip"><input type="checkbox" name="magenvoll"><span><i class="hud weiss" data-icon="magen"></i>Magen-voll-Symbol</span></label>
+          <label class="chip"><input type="checkbox" name="nass"><span><i class="hud weiss" data-icon="nass"></i>Nass-Symbol</span></label>
+        </div>
+      </div>
+
+      <div class="frage">
+        <p class="frage-titel" id="f-thermo">Thermometer benutzt (Gegenstand)</p>
+        <div class="chips" role="radiogroup" aria-labelledby="f-thermo">
+          <label class="chip"><input type="radio" name="thermo" value="fieber"><span>Zeigt Fieber</span></label>
+          <label class="chip"><input type="radio" name="thermo" value="normal"><span>Zeigt normal</span></label>
+          <label class="chip"><input type="radio" name="thermo" value=""><span>Nicht gemessen</span></label>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="gruppe">
+      <legend>Was mit deinem Charakter passiert</legend>
+      <div class="chips">
+        <label class="chip"><input type="checkbox" name="erbrechen"><span>Erbricht</span></label>
+        <label class="chip"><input type="checkbox" name="verschwommen"><span>Sicht verschwommen</span></label>
+        <label class="chip"><input type="checkbox" name="hitzeanim"><span>Hitze-Animation oder Stöhnen vor Hitze</span></label>
+        <label class="chip"><input type="checkbox" name="flackern"><span>Sicht wird dunkel und flackert</span></label>
+        <label class="chip"><input type="checkbox" name="ohnmacht"><span>Wird kurz bewusstlos</span></label>
+        <label class="chip"><input type="checkbox" name="ausdauer"><span>Ausdauer schlechter als sonst</span></label>
+        <label class="chip"><input type="checkbox" name="husten"><span>Hustet</span></label>
+        <label class="chip"><input type="checkbox" name="niesen"><span>Niest</span></label>
+        <label class="chip"><input type="checkbox" name="atmen"><span>Atmet schwer</span></label>
+        <label class="chip"><input type="checkbox" name="schmerz"><span>Schmerzlaute</span></label>
+        <label class="chip"><input type="checkbox" name="zittern"><span>Hände zittern</span></label>
+        <label class="chip"><input type="checkbox" name="lachen"><span>Lacht unkontrolliert</span></label>
+        <label class="chip"><input type="checkbox" name="augen"><span>Rote Adern am Bildrand</span></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="gruppe">
+      <legend>Was du in der letzten Stunde gemacht hast</legend>
+      <div class="chips">
+        <label class="chip"><input type="checkbox" name="teich"><span>Aus Teich, Fluss, Pfütze oder Tunnel getrunken</span></label>
+        <label class="chip"><input type="checkbox" name="vielgetrunken"><span>Viel auf einmal getrunken oder gegessen</span></label>
+        <label class="chip"><input type="checkbox" name="roh"><span>Rohes Fleisch gegessen</span></label>
+        <label class="chip"><input type="checkbox" name="verdorben"><span>Verdorbenes oder verbranntes Essen</span></label>
+        <label class="chip"><input type="checkbox" name="blutig"><span>Mit blutigen Händen gegessen oder getrunken</span></label>
+        <label class="chip"><input type="checkbox" name="benzin"><span>Benzin oder unbekannte Dose</span></label>
+        <label class="chip"><input type="checkbox" name="mensch"><span>Menschenfleisch gegessen</span></label>
+        <label class="chip"><input type="checkbox" name="sturm"><span>In einem Sandsturm gewesen</span></label>
+        <label class="chip"><input type="checkbox" name="gas"><span>In einer Gaszone gewesen</span></label>
+        <label class="chip"><input type="checkbox" name="wunde"><span>Wunde ohne Desinfektion verbunden</span></label>
+        <label class="chip"><input type="checkbox" name="kalt"><span>Gefroren oder lange nass gewesen</span></label>
+        <label class="chip"><input type="checkbox" name="kontakt"><span>Kontakt mit krankem Spieler</span></label>
+        <label class="chip"><input type="checkbox" name="sprint"><span>Viel gerannt</span></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="gruppe">
+      <legend>Wo du gerade bist</legend>
+      <div class="frage">
+        <p class="frage-titel" id="f-ort">Ort</p>
+        <div class="chips" role="radiogroup" aria-labelledby="f-ort">
+          <label class="chip"><input type="radio" name="ort" value="sonne"><span>Offen in der Sonne</span></label>
+          <label class="chip"><input type="radio" name="ort" value="schatten"><span>Im Schatten</span></label>
+          <label class="chip"><input type="radio" name="ort" value="gebaeude"><span>Im Gebäude</span></label>
+          <label class="chip"><input type="radio" name="ort" value="auto"><span>Im Auto</span></label>
+        </div>
+      </div>
+      <div class="frage">
+        <p class="frage-titel" id="f-zeit">Tageszeit im Spiel</p>
+        <div class="chips" role="radiogroup" aria-labelledby="f-zeit">
+          <label class="chip"><input type="radio" name="zeit" value="morgen"><span>Morgen</span></label>
+          <label class="chip"><input type="radio" name="zeit" value="mittag"><span>Mittag</span></label>
+          <label class="chip"><input type="radio" name="zeit" value="nachmittag"><span>Nachmittag</span></label>
+          <label class="chip"><input type="radio" name="zeit" value="abend"><span>Abend</span></label>
+          <label class="chip"><input type="radio" name="zeit" value="nacht"><span>Nacht</span></label>
+        </div>
+      </div>
+      <div class="frage">
+        <p class="frage-titel">Ausrüstung</p>
+        <div class="chips">
+          <label class="chip"><input type="checkbox" name="ohnekopf"><span>Keine Kopfbedeckung</span></label>
+          <label class="chip"><input type="checkbox" name="schwer"><span>Schwere oder warme Kleidung</span></label>
+        </div>
+      </div>
+    </fieldset>
+
+    <div class="aktion">
+      <button type="submit" class="knopf">Auswerten</button>
+      <button type="reset" class="knopf leise">Alles leeren</button>
+    </div>
+  </form>
+
+  <div id="ergebnis" class="ergebnis" aria-live="polite" hidden></div>
+</section>
+
+<section id="hitze" class="abschnitt" aria-labelledby="hitze-titel">
+  <h2 id="hitze-titel">Hitzschlag verstehen</h2>
+  <p class="einleitung">Den Hitzschlag gibt es seit Update 1.30, das zusammen mit Badlands erschienen ist. Er ist kein Erreger, sondern ein versteckter Wert. Ob er steigt oder sinkt, entscheiden zwei Dinge: dein Temperatursymbol und dein Wasserstand.</p>
+
+  <h3>Steigt oder sinkt der Wert gerade?</h3>
+  <div class="tabelle-rahmen">
+    <table class="matrix">
+      <caption>Änderung des Hitzewerts je nach Temperatur- und Wassersymbol</caption>
+      <thead>
+        <tr><th scope="col">Temperatur</th><th scope="col">Tropfen ganz voll</th><th scope="col">Tropfen weiß, nicht voll</th><th scope="col">Tropfen gelb oder rot</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row"><i class="hud weiss" data-icon="temp"></i>Weiß oder blau</th><td class="sinkt" colspan="3">Sinkt langsam: 0,006 pro Minute</td></tr>
+        <tr><th scope="row"><i class="hud gelb" data-icon="temp"></i>Gelb</th><td class="bleibt">Bleibt gleich</td><td class="bleibt">Pendelt um 0,4, also höchstens Stufe 2</td><td class="steigt">Steigt bis Stufe 4</td></tr>
+        <tr><th scope="row"><i class="hud rot" data-icon="temp"></i>Rot</th><td class="steigt">Steigt: Stufe 3 nach etwa 31 Min.</td><td class="steigt">Steigt</td><td class="steigt stark">Steigt schnell</td></tr>
+        <tr><th scope="row"><i class="hud rot blink" data-icon="temp"></i>Rot blinkend</th><td class="steigt">Steigt: Stufe 3 nach etwa 20 Min.</td><td class="steigt">Steigt</td><td class="steigt stark">Steigt sehr schnell</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="hinweis">Zeiten gelten ab 0. Beim Erbrechen verlierst du jedes Mal 70 Wasser, deshalb rutscht der Tropfen leicht aus „ganz voll“ heraus.</p>
+
+  <h3>Rechner: Wie lange bis du wieder gesund bist</h3>
+  <div class="rechner">
+    <div class="frage">
+      <p class="frage-titel" id="r-stufe">Deine Stufe</p>
+      <div class="chips" role="radiogroup" aria-labelledby="r-stufe">
+        <label class="chip"><input type="radio" name="rstufe" value="1"><span>1: kaum etwas</span></label>
+        <label class="chip"><input type="radio" name="rstufe" value="2"><span>2: Sicht verschwommen</span></label>
+        <label class="chip"><input type="radio" name="rstufe" value="3" checked><span>3: Erbrechen</span></label>
+        <label class="chip"><input type="radio" name="rstufe" value="4"><span>4: Ohnmacht</span></label>
+      </div>
+    </div>
+    <div id="rechner-ausgabe" class="rechner-ausgabe" aria-live="polite"></div>
+  </div>
+
+  <h3>So kühlst du am schnellsten ab</h3>
+  <ol class="schritte">
+    <li><strong>In Stufe 4 zuerst in Deckung.</strong> Ohnmacht in der offenen Sonne ist gefährlich. Erst Schatten, Gebäude oder Auto, dann trinken.</li>
+    <li><strong>Gesicht waschen.</strong> Am Brunnen, an einer Wasserstelle oder mit einer gefüllten Flasche in der Hand. Jede Waschung senkt den Wert um 0,175. Das entspricht 29 Minuten im Schatten.</li>
+    <li><strong>30 Sekunden warten, dann wieder waschen.</strong> Nach jeder Waschung ist der Wert 30 s eingefroren. Er steigt dann nicht, sinkt aber auch nicht weiter. Eine zweite Waschung in dieser Zeit verpufft.</li>
+    <li><strong>Raus aus Rot.</strong> Solange das Temperatursymbol rot ist, steigt der Wert wieder. Schatten oder Gebäude suchen und auf die Pfeile achten: Zeigen sie nach unten, kühlst du ab.</li>
+    <li><strong>Tropfen ganz voll trinken, aber in Etappen.</strong> Bei vollem Tropfen steigt der Wert im gelben Bereich nicht. Ab Magen 2000 erbrichst du aber vom Trinken selbst.</li>
+  </ol>
+
+  <h3>Was in Nasdara anders ist</h3>
+  <ul class="fakten-liste">
+    <li>Tageshöchstwerte im Sommer bis 38 °C, nachts 3 bis 14 °C.</li>
+    <li>Direkte Sonne addiert morgens bis +6 °C, mittags bis +8 °C, nachmittags +4 °C. Eine Kopfbedeckung verringert diesen Aufschlag.</li>
+    <li>In Gebäuden ist es 3 °C wärmer als die Luft draußen, aber ohne Sonne.</li>
+    <li>Auch ein Kleidungsstück in der Hand am Wasser nass machen senkt den Wert etwas, nur nicht während der 30-s-Sperre nach dem Waschen.</li>
+  </ul>
+</section>
+
+<section id="krankheiten" class="abschnitt" aria-labelledby="krank-titel">
+  <h2 id="krank-titel">Krankheiten nachschlagen</h2>
+  <p class="einleitung">Alle Krankheiten und Zustände aus Vanilla-DayZ, die auf Nasdara vorkommen. Tippe auf eine, um Ursache, Erkennen, Heilen und Vorbeugen zu sehen.</p>
+  <div id="krank-liste" class="krank-liste"></div>
+  <p class="hinweis">Schwermetallvergiftung fehlt hier mit Absicht: Laut Spielcode gibt es sie nur auf Sakhal.</p>
+</section>
+
+<section id="fakten" class="abschnitt" aria-labelledby="fakten-titel">
+  <h2 id="fakten-titel">Wichtige Fakten auf einen Blick</h2>
+  <ul class="fakten-karten">
+    <li><strong>Erbrechen ist nicht gleich Krankheit.</strong> Auch ein überfüllter Magen (ab 2000) lässt dich erbrechen, dann ohne Krankheitssymbol.</li>
+    <li><strong>Hitzschlag zeigt kein Fieber.</strong> Zeigt das Thermometer Fieber, ist es eher Cholera, Grippe oder eine Wundinfektion.</li>
+    <li><strong>Gegen Hitzschlag hilft keine Tablette.</strong> Nur Abkühlen und Gesicht waschen senken den Wert.</li>
+    <li><strong>Fünf Waschungen statt über zwei Stunden.</strong> Von Stufe 3 auf null: vier- bis fünfmal waschen im 30-s-Takt. Nur abkühlen dauert 100 bis 142 Minuten.</li>
+    <li><strong>Nur Brunnen sind sicher.</strong> Jeder Schluck aus Teich, Fluss oder Pfütze bringt Cholera-Erreger.</li>
+    <li><strong>Voller Tropfen schützt im gelben Bereich.</strong> Über 3500 Wasser steigt der Hitzewert bei gelbem Symbol nicht.</li>
+    <li><strong>Rot heißt immer: Der Wert steigt.</strong> Auch mit vollem Wasser.</li>
+    <li><strong>Kopfbedeckung zählt.</strong> Ohne Kopfbedeckung wirkt die Sonne stärker auf deine Temperatur.</li>
+    <li><strong>Sandsturm: nur echte Deckung zählt.</strong> Geschlossenes Gebäude, Bunker, Tunnel oder Auto. Motorrad und Vordach reichen nicht.</li>
+    <li><strong>Augen am Brunnen waschen.</strong> Zwei Waschungen am Wasser beseitigen die Reizung, die Flasche hilft kaum.</li>
+  </ul>
+
+  <h3>Quellen</h3>
+  <ul class="quellen">
+    <li>Spielskripte von DayZ 1.30 (stable), Datei <code>scripts.pbo</code>: HeatStroke.c, HeatComfortMdfr.c, PlayerConstants.c, Nasdara.c und die Krankheitsdateien.</li>
+    <li><a href="https://low.ms/blog/dayz-badlands-heatstroke-silicosis-sandstorm-cures">low.ms: DayZ Badlands Heatstroke, Silicosis and Sandstorms</a></li>
+    <li><a href="https://www.dayz--badlands.wiki/en/guide/dayz-badlands-heat-stroke">DayZ Badlands Wiki: Heat Stroke</a></li>
+    <li><a href="https://dq7reimagined.com/dayz-badlands/heatstroke-illnesses/">Player Atlas: Heatstroke Cure, Silicosis &amp; Irritated Eyes</a></li>
+    <li><a href="https://dayz.wiki.gg/wiki/Poisoning">DayZ Wiki: Poisoning</a> und <a href="https://dayz.fandom.com/wiki/Salmonellosis">Salmonellosis</a></li>
+  </ul>
+</section>
+
+</main>
+
+<footer class="fuss">
+  <p>Inoffizielles Fan-Tool, nicht von Bohemia Interactive. Stand: DayZ 1.30, Oktober 2026. Die Auswertung ist eine Einschätzung aus deinen Angaben, keine Garantie.</p>
+</footer>
+
+<script src="js/daten.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
